@@ -9,6 +9,7 @@ GO
 CREATE SCHEMA esquema;
 GO
 
+--comentario
 --------------------- CREACION DE TABLAS -----------------------
 
 USE [DATA4MIND]
