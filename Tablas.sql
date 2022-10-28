@@ -172,4 +172,12 @@ medio_pago_costo DECIMAL(18,2),
 tipo_medio_pago NVARCHAR(255)
 );
 
+CREATE TABLE producto_comprado (
+compra_codigo DECIMAL(19,0) IDENTITY(1,1) REFERENCES compra,
+producto_variante_codigo NVARCHAR(50) REFERENCES producto_variante,
+compra_prod_cantidad DECIMAL(18,0),
+compra_prod_precio DECIMAL(18,2),
+PRIMARY KEY (compra_codigo, producto_variante_codigo)
+);
+
 GO 
