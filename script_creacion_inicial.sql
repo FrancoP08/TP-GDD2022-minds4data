@@ -5,6 +5,10 @@ GO
 CREATE DATABASE DATA4MIND;
 GO
 
+-- DROP SCHEMA esquema;
+CREATE SCHEMA esquema;
+GO
+
 --------------------- CREACION DE TABLAS -----------------------
 
 USE [DATA4MIND]
