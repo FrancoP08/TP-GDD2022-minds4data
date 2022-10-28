@@ -1,10 +1,11 @@
+/**
 USE [GD2C2022]
 GO
 ------------------ CREACION DE BASE DE DATOS -------------------
 -- DROP DATABASE DATA4MIND; --
 CREATE DATABASE DATA4MIND;
 GO
-
+**/
 --------------------- CREACION DE TABLAS -----------------------
 USE [GD2C2022]
 
@@ -110,7 +111,7 @@ BEGIN
      ELSE
 	    CREATE TABLE localidad (
 		localidad_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
-        codigo_postal DECIMAL(18,0) UNIQUE,
+        codigo_postal DECIMAL(18,0),
         provincia_codigo INTEGER REFERENCES provincia(provincia_codigo),
         nombre_localidad NVARCHAR(255)
 		);
@@ -127,10 +128,10 @@ BEGIN
         DROP TABLE cliente;
      ELSE
 		CREATE TABLE cliente (
-		cliente_codigo DECIMAL(19,0) PRIMARY KEY,
+		cliente_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
 		cliente_nombre NVARCHAR(255),
 		cliente_apellido NVARCHAR(255),
-		cliente_dni DECIMAL(18,0) UNIQUE,
+		cliente_dni DECIMAL(18,0),
 		cliente_fecha_nac DATE,
 		cliente_direccion NVARCHAR(255),		
 		cliente_localidad INTEGER REFERENCES localidad,
@@ -237,7 +238,7 @@ BEGIN
 		CREATE TABLE venta (
 		venta_codigo DECIMAL(19,0) PRIMARY KEY,
 		venta_fecha DATE,
-		cliente_codigo DECIMAL(19,0) REFERENCES cliente,
+		cliente_codigo INTEGER REFERENCES cliente,
 		venta_total DECIMAL(18,2),
 		importe DECIMAL(18,2),
 		medio_pago_codigo INTEGER REFERENCES medio_pago_venta,
@@ -324,3 +325,56 @@ GO
 
 EXEC CREATE_TRANSACTIONAL_TABLES;
 GO
+
+/**
+
+CREATE PROCEDURE migrar 
+AS
+BEGIN
+
+INSERT INTO provincia (nombre_provincia)
+SELECT DISTINCT(cliente_provincia)
+FROM GD2C2022.gd_esquema.Maestra
+WHERE cliente_provincia is not null
+
+INSERT INTO localidad (nombre_localidad, provincia_codigo, codigo_postal)
+SELECT DISTINCT cliente_localidad, provincia_codigo, CLIENTE_CODIGO_POSTAL
+FROM GD2C2022.gd_esquema.Maestra JOIN provincia ON cliente_provincia = nombre_provincia
+WHERE cliente_localidad IS NOT NULL
+
+INSERT INTO cliente (cliente_nombre, cliente_apellido, cliente_dni, cliente_fecha_nac, cliente_direccion, cliente_localidad, cliente_telefono, cliente_email)
+SELECT DISTINCT cliente_nombre, cliente_apellido, cliente_dni, cliente_fecha_nac, cliente_direccion, localidad_codigo, cliente_telefono, cliente_mail
+FROM GD2C2022.gd_esquema.Maestra JOIN localidad ON cliente_localidad = nombre_localidad AND cliente_codigo_postal = codigo_postal
+WHERE cliente_dni IS NOT NULL
+
+END
+GO 
+
+
+DROP TABLE descuento_de_compra;
+DROP TABLE tipo_descuento_compra;
+DROP TABLE producto_comprado;
+DROP TABLE compra;
+DROP TABLE medio_pago_compra;
+DROP TABLE proveedor;
+DROP TABLE producto_vendido;
+DROP TABLE producto_variante;
+DROP TABLE producto;
+DROP TABLE categoria;
+DROP TABLE marca;
+DROP TABLE material;
+DROP TABLE variante;
+DROP TABLE tipo_variante;
+DROP TABLE cupon_canjeado;
+DROP TABLE cupon;
+DROP TABLE venta;
+DROP TABLE canal;
+DROP TABLE descuento_venta;
+DROP TABLE tipo_descuento_venta;
+DROP TABLE medio_pago_venta;
+DROP TABLE envio;
+DROP TABLE cliente;
+DROP TABLE localidad;
+DROP TABLE provincia;
+
+**/
