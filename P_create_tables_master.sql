@@ -39,7 +39,7 @@ BEGIN
 		DROP TABLE categoria;
 		ELSE
 			CREATE TABLE categoria (
-			categoria_codigo NUMERIC(50) IDENTITY(1,1) PRIMARY KEY,
+			categoria_codigo NUMERIC(10) IDENTITY(1,1) PRIMARY KEY,
 			categoria NVARCHAR(50)
 
 		);	
@@ -49,7 +49,7 @@ BEGIN
 		DROP TABLE marca;
 		ELSE
 			CREATE TABLE marca (
-			marca_codigo NUMERIC(50) IDENTITY(1,1) PRIMARY KEY,
+			marca_codigo NUMERIC(10) IDENTITY(1,1) PRIMARY KEY,
 			marca NVARCHAR(50)
 			);
 	
@@ -58,7 +58,7 @@ BEGIN
 		DROP TABLE material;
 		ELSE
 			CREATE TABLE material (
-			material_codigo NUMERIC(50) IDENTITY(1,1) PRIMARY KEY,
+			material_codigo NUMERIC(10) IDENTITY(1,1) PRIMARY KEY,
 			material NVARCHAR(50)
 			);
 
@@ -81,4 +81,4 @@ BEGIN
 			);	
 END 
 
-EXEC CREATE_MASTER_TABLES
+EXEC CREATE_MASTER_TABLES;
