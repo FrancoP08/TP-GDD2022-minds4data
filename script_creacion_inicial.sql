@@ -144,25 +144,11 @@ BEGIN
 		precio_actual DECIMAL(18,2),
 		stock_disponible DECIMAL(18,0)
 	);
-
-	CREATE TABLE medio_envio (
-	medio_envio_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
-	medio_envio NVARCHAR(255)
-	);
-
-	CREATE TABLE envio (
-		envio_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
-		localidad_codigo INTEGER REFERENCES localidad,
-		precio_envio DECIMAL(18,2),
-		medio_envio INTEGER REFERENCES medio_envio,
-		importe DECIMAL(18,2),
-	);
 	
 	CREATE TABLE venta_canal (
 		venta_canal_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
 		venta_canal NVARCHAR(2255),
-		venta_canal_costo DECIMAL(18,2),
-		importe DECIMAL(18,2)
+		venta_canal_costo DECIMAL(18,2)
 	);
 
 	CREATE TABLE tipo_medio_pago (
@@ -177,9 +163,21 @@ BEGIN
 		cliente_codigo INTEGER REFERENCES cliente,
 		venta_total DECIMAL(18,2),
 		importe DECIMAL(18,2),
-		--medio_pago_codigo INTEGER REFERENCES medio_pago_venta,
-		venta_canal_codigo INTEGER REFERENCES venta_canal,
-		envio_codigo INTEGER REFERENCES envio
+		venta_canal_codigo INTEGER REFERENCES venta_canal
+	);
+
+	CREATE TABLE medio_envio (
+		medio_envio_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
+		medio_envio NVARCHAR(255)
+	);
+
+	CREATE TABLE envio (
+		envio_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
+		venta_codigo DECIMAL(19,0) REFERENCES venta,
+		localidad_codigo INTEGER REFERENCES localidad,
+		precio_envio DECIMAL(18,2),
+		medio_envio INTEGER REFERENCES medio_envio,
+		importe DECIMAL(18,2),
 	);
 
 	CREATE TABLE medio_pago_venta (
@@ -200,7 +198,6 @@ BEGIN
 	CREATE TABLE compra (
 		compra_codigo DECIMAL(19,0) PRIMARY KEY,
 		proveedor_codigo NVARCHAR(50) REFERENCES proveedor,
-		--medio_de_pago_codigo INTEGER REFERENCES medio_pago_compra,
 		compra_fecha DATE NOT NULL,
 		importe DECIMAL(18,2),
 		compra_total DECIMAL(18,2)
@@ -304,7 +301,7 @@ BEGIN
 	JOIN material ON maestra.PRODUCTO_MATERIAL = material.material
 	JOIN marca ON maestra.PRODUCTO_MARCA = marca.marca
 	JOIN categoria ON maestra.PRODUCTO_CATEGORIA = categoria.categoria
-
+	
 	INSERT INTO tipo_variante (tipo_variante_descripcion)
 	SELECT DISTINCT PRODUCTO_TIPO_VARIANTE
 	FROM GD2C2022.gd_esquema.Maestra
@@ -325,9 +322,17 @@ BEGIN
 	-- TIPO MEDIO PAGO
 
 	INSERT INTO tipo_medio_pago (tipo_mp, medio_pago_costo)
-	SELECT DISTINCT VENTA_MEDIO_PAGO, VENTA_MEDIO_PAGO_COSTO
-	FROM GD2C2022.gd_esquema.Maestra
-	WHERE VENTA_MEDIO_PAGO IS NOT NULL
+	SELECT DISTINCT mp, VENTA_MEDIO_PAGO_COSTO
+	FROM (
+		SELECT DISTINCT VENTA_MEDIO_PAGO mp
+		FROM GD2C2022.gd_esquema.Maestra
+		WHERE VENTA_MEDIO_PAGO IS NOT NULL
+		UNION
+		SELECT DISTINCT COMPRA_MEDIO_PAGO mp
+		FROM GD2C2022.gd_esquema.Maestra
+		WHERE COMPRA_MEDIO_PAGO IS NOT NULL
+	) subq LEFT OUTER JOIN GD2C2022.gd_esquema.Maestra
+	ON subq.mp = VENTA_MEDIO_PAGO
 
 	-- VENTA
 
@@ -343,20 +348,13 @@ BEGIN
 	FROM GD2C2022.gd_esquema.Maestra
 	WHERE VENTA_CANAL IS NOT NULL
 
-	INSERT INTO medio_envio (medio_envio)
-	SELECT DISTINCT VENTA_MEDIO_ENVIO FROM GD2C2022.gd_esquema.Maestra WHERE VENTA_MEDIO_ENVIO IS NOT NULL
-
-	INSERT INTO envio (precio_envio, medio_envio)
-	SELECT DISTINCT VENTA_ENVIO_PRECIO, (SELECT medio_envio_codigo FROM medio_envio WHERE medio_envio=m.VENTA_MEDIO_ENVIO)
-	FROM GD2C2022.gd_esquema.Maestra m  
-	WHERE VENTA_MEDIO_ENVIO IS NOT NULL
-
-	INSERT INTO venta (venta_codigo, venta_fecha, cliente_codigo, venta_total)
-	SELECT DISTINCT VENTA_CODIGO, VENTA_FECHA, cliente_codigo, VENTA_TOTAL
+	INSERT INTO venta (venta_codigo, venta_fecha, cliente_codigo, venta_total, venta_canal_codigo)
+	SELECT DISTINCT VENTA_CODIGO, VENTA_FECHA, cliente_codigo, VENTA_TOTAL, venta_canal_codigo
 	FROM GD2C2022.gd_esquema.Maestra m
 	JOIN cliente c ON m.CLIENTE_NOMBRE = c.cliente_nombre
 	AND m.CLIENTE_APELLIDO = c.cliente_apellido
 	AND m.CLIENTE_DNI = c.cliente_dni
+	JOIN venta_canal v ON m.VENTA_CANAL = v.venta_canal
 	WHERE VENTA_CODIGO IS NOT NULL
 
 	INSERT INTO tipo_descuento_venta (venta_descuento_concepto)
@@ -399,6 +397,19 @@ BEGIN
 	FROM GD2C2022.gd_esquema.Maestra m
 	JOIN tipo_medio_pago t ON t.tipo_mp = m.VENTA_MEDIO_PAGO
 	JOIN venta v ON m.VENTA_CODIGO = v.venta_codigo
+
+	INSERT INTO medio_envio (medio_envio)
+	SELECT DISTINCT VENTA_MEDIO_ENVIO
+	FROM GD2C2022.gd_esquema.Maestra
+	WHERE VENTA_MEDIO_ENVIO IS NOT NULL
+	
+	INSERT INTO envio (venta_codigo, localidad_codigo, precio_envio, medio_envio, importe)
+	SELECT DISTINCT m.VENTA_CODIGO, localidad_codigo, VENTA_ENVIO_PRECIO, medio_envio_codigo, importe
+	FROM GD2C2022.gd_esquema.Maestra m
+	JOIN localidad ON CLIENTE_LOCALIDAD = nombre_localidad AND CLIENTE_CODIGO_POSTAL = codigo_postal
+	JOIN medio_envio ON VENTA_MEDIO_ENVIO = medio_envio
+	JOIN venta v ON m.VENTA_CODIGO = v.venta_codigo
+	WHERE VENTA_MEDIO_ENVIO IS NOT NULL
 
 	-- COMPRA
 
@@ -476,5 +487,3 @@ DROP TABLE cliente
 DROP TABLE localidad
 DROP TABLE provincia
 **/
-
-select * from medio_pago_compra
