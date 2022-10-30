@@ -116,9 +116,9 @@ BEGIN
 	);
 
 	CREATE TABLE proveedor (
-		proveedor_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
+		proveedor_codigo INTEGER IDENTITY(1,1),
 		proveedor_razon_social NVARCHAR(50),
-		proveedor_cuit NVARCHAR(50) UNIQUE,
+		proveedor_cuit NVARCHAR(50) PRIMARY KEY,
 		proveedor_mail NVARCHAR(50),
 		proveedor_domicilio NVARCHAR(50),
 		proveedor_localidad INTEGER REFERENCES localidad
@@ -147,15 +147,15 @@ BEGIN
 	);
 
 	CREATE TABLE envio (
-		envio_codigo DECIMAL(19,0) IDENTITY(1,1) PRIMARY KEY,
+		envio_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
 		localidad_codigo INTEGER REFERENCES localidad,
 		precio_envio DECIMAL(18,2),
 		medio_envio NVARCHAR(255),
 		importe DECIMAL(18,2),
 	);
 	
-	CREATE TABLE canal (
-		venta_canal_codigo DECIMAL(19,0) IDENTITY(1,1) PRIMARY KEY,
+	CREATE TABLE venta_canal (
+		venta_canal_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
 		venta_canal NVARCHAR(2255),
 		venta_canal_costo DECIMAL(18,2),
 		importe DECIMAL(18,2)
@@ -175,8 +175,8 @@ BEGIN
 		venta_total DECIMAL(18,2),
 		importe DECIMAL(18,2),
 		medio_pago_codigo INTEGER REFERENCES medio_pago_venta,
-		venta_canal_codigo DECIMAL(19,0) REFERENCES canal,
-		envio_codigo DECIMAL(19,0) REFERENCES envio  
+		venta_canal_codigo INTEGER REFERENCES venta_canal,
+		envio_codigo INTEGER REFERENCES envio  
 	);
 
 	CREATE TABLE descuento_venta (
@@ -195,7 +195,7 @@ BEGIN
 
 	CREATE TABLE compra (
 		compra_codigo DECIMAL(19,0) PRIMARY KEY,
-		proveedor_codigo INTEGER REFERENCES proveedor,
+		proveedor_codigo NVARCHAR(50) REFERENCES proveedor,
 		medio_de_pago_codigo INTEGER REFERENCES medio_pago_compra,
 		compra_fecha DATE NOT NULL,
 		importe DECIMAL(18,2),
@@ -318,7 +318,7 @@ BEGIN
 	AND CLIENTE_CODIGO_POSTAL = codigo_postal
 	WHERE CLIENTE_DNI IS NOT NULL
 
-	INSERT INTO canal (venta_canal, venta_canal_costo)
+	INSERT INTO venta_canal (venta_canal, venta_canal_costo)
 	SELECT DISTINCT VENTA_CANAL, VENTA_CANAL_COSTO
 	FROM GD2C2022.gd_esquema.Maestra
 	WHERE VENTA_CANAL IS NOT NULL
@@ -383,10 +383,9 @@ BEGIN
 	WHERE COMPRA_MEDIO_PAGO IS NOT NULL
 
 	INSERT INTO compra (compra_codigo, proveedor_codigo, compra_fecha, compra_total)
-	SELECT DISTINCT COMPRA_NUMERO, proveedor_codigo, COMPRA_FECHA, COMPRA_TOTAL
-	FROM GD2C2022.gd_esquema.Maestra m JOIN proveedor p
-	ON m.PROVEEDOR_CUIT = p.proveedor_cuit
-	WHERE COMPRA_NUMERO IS NOT NULL
+	SELECT DISTINCT COMPRA_NUMERO, PROVEEDOR_CUIT, COMPRA_FECHA, COMPRA_TOTAL
+	FROM GD2C2022.gd_esquema.Maestra m 
+	--JOIN proveedor p ON m.PROVEEDOR_CUIT = p.proveedor_cuit WHERE COMPRA_NUMERO IS NOT NULL
 
 	INSERT INTO tipo_descuento_compra (compra_descuento_concepto)
 	SELECT DISTINCT VENTA_DESCUENTO_CONCEPTO
