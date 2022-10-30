@@ -54,54 +54,67 @@ AS
 BEGIN
 	CREATE TABLE provincia (
 		provincia_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
-		nombre_provincia NVARCHAR(255)
+		nombre_provincia NVARCHAR(255) NOT NULL
 	);
+
+	CREATE UNIQUE INDEX index_provincia ON provincia(nombre_provincia);
 
 	CREATE TABLE cupon (
 		venta_cupon_codigo NVARCHAR(255) PRIMARY KEY,
-		venta_cupon_fecha_desde DATE,
-		venta_cupon_fecha_hasta DATE,
-		venta_cupon_valor DECIMAL(18,2),
-		venta_cupon_tipo NVARCHAR(50)
+		venta_cupon_fecha_desde DATE NOT NULL,
+		venta_cupon_fecha_hasta DATE NOT NULL,
+		venta_cupon_valor DECIMAL(18,2) NOT NULL,
+		venta_cupon_tipo NVARCHAR(50) NOT NULL
 	);
 
 	CREATE TABLE tipo_variante (
 		tipo_variante_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
-		tipo_variante_descripcion NVARCHAR(255)
+		tipo_variante_descripcion NVARCHAR(255) NOT NULL
 	);
 
 	CREATE TABLE categoria (
 		categoria_codigo NUMERIC(10) IDENTITY(1,1) PRIMARY KEY,
-		categoria NVARCHAR(50)
+		categoria NVARCHAR(50) NOT NULL
+	);
 
-	);	
-
+	CREATE UNIQUE INDEX index_categoria ON categoria(categoria);
+	
 	CREATE TABLE marca (
 		marca_codigo NUMERIC(10) IDENTITY(1,1) PRIMARY KEY,
-		marca NVARCHAR(50)
+		marca NVARCHAR(50) NOT NULL
 	);
+
+	CREATE UNIQUE INDEX index_marca ON marca(marca);
 	
 	CREATE TABLE material (
 		material_codigo NUMERIC(10) IDENTITY(1,1) PRIMARY KEY,
-		material NVARCHAR(50)
+		material NVARCHAR(50) NOT NULL
 	);
+
+	CREATE UNIQUE INDEX index_material ON material(material);
 
 	CREATE TABLE tipo_descuento_compra (
 		tipo_descuento_codigo NUMERIC(10) IDENTITY(1,1) PRIMARY KEY,
-		compra_descuento_concepto NVARCHAR(255) -- El concepto del descuento es el mismo que en la columna de "VENTA_DESCUENTO_CONCEPTO" --
+		compra_descuento_concepto NVARCHAR(255) NOT NULL -- El concepto del descuento es el mismo que en la columna de "VENTA_DESCUENTO_CONCEPTO" --
 	);
+
+	CREATE UNIQUE INDEX index_descuento_compra ON tipo_descuento_compra(compra_descuento_concepto);
 
 	CREATE TABLE tipo_descuento_venta (
 		tipo_descuento_codigo NUMERIC(10) IDENTITY(1,1) PRIMARY KEY,
-		venta_descuento_concepto NVARCHAR(255)
+		venta_descuento_concepto NVARCHAR(255) NOT NULL
 	);
+
+	CREATE UNIQUE INDEX index_descuento_venta ON tipo_descuento_venta(venta_descuento_concepto); 
 
 	CREATE TABLE localidad (
 		localidad_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
-		codigo_postal DECIMAL(18,0),
-		provincia_codigo INTEGER REFERENCES provincia(provincia_codigo),
-		nombre_localidad NVARCHAR(255)
+		codigo_postal DECIMAL(18,0) NOT NULL,
+		provincia_codigo INTEGER REFERENCES provincia(provincia_codigo) NOT NULL,
+		nombre_localidad NVARCHAR(255) NOT NULL
 	);
+
+	CREATE INDEX index_localidad ON localidad(codigo_postal, nombre_localidad); 
 
 	CREATE TABLE cliente (
 		cliente_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
@@ -112,8 +125,10 @@ BEGIN
 		cliente_direccion NVARCHAR(255),		
 		cliente_localidad INTEGER REFERENCES localidad,
 		cliente_telefono DECIMAL(18,2),
-		cliente_mail NVARCHAR(255)
+		cliente_mail NVARCHAR(255),
 	);
+
+	CREATE INDEX index_cliente ON cliente(cliente_apellido, cliente_dni);
 
 	CREATE TABLE proveedor (
 		proveedor_razon_social NVARCHAR(50),
@@ -144,7 +159,7 @@ BEGIN
 		precio_actual DECIMAL(18,2),
 		stock_disponible DECIMAL(18,0)
 	);
-	
+
 	CREATE TABLE venta_canal (
 		venta_canal_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
 		venta_canal NVARCHAR(2255),
@@ -170,6 +185,8 @@ BEGIN
 		medio_envio_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
 		medio_envio NVARCHAR(255)
 	);
+
+	CREATE UNIQUE INDEX index_medio_envio ON medio_envio(medio_envio);
 
 	CREATE TABLE envio (
 		envio_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
@@ -487,3 +504,4 @@ DROP TABLE cliente
 DROP TABLE localidad
 DROP TABLE provincia
 **/
+
