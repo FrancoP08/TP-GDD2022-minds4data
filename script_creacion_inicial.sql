@@ -20,6 +20,7 @@ CREATE PROCEDURE DROP_TABLES
 AS
 BEGIN
 	DECLARE @sql NVARCHAR(500) = ''
+	
 	DECLARE cursorTablas CURSOR FOR
 	SELECT DISTINCT 'ALTER TABLE [' + tc.TABLE_SCHEMA + '].[' +  tc.TABLE_NAME + '] DROP [' + rc.CONSTRAINT_NAME + '];'
 	FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS rc
@@ -42,9 +43,6 @@ BEGIN
 END
 GO
 
-EXEC DROP_TABLES
-GO
-
 IF EXISTS(SELECT [name] FROM sys.procedures WHERE [name]='CREATE_TABLES')
    DROP PROCEDURE CREATE_TABLES;
 GO
@@ -52,60 +50,14 @@ GO
 CREATE PROCEDURE CREATE_TABLES
 AS
 BEGIN
+	-- PROVINCIA
+
 	CREATE TABLE provincia (
 		provincia_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
 		nombre_provincia NVARCHAR(255) NOT NULL
 	);
 
-	CREATE UNIQUE INDEX index_provincia ON provincia(nombre_provincia);
-
-	CREATE TABLE cupon (
-		venta_cupon_codigo NVARCHAR(255) PRIMARY KEY,
-		venta_cupon_fecha_desde DATE NOT NULL,
-		venta_cupon_fecha_hasta DATE NOT NULL,
-		venta_cupon_valor DECIMAL(18,2) NOT NULL,
-		venta_cupon_tipo NVARCHAR(50) NOT NULL
-	);
-
-	CREATE TABLE tipo_variante (
-		tipo_variante_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
-		tipo_variante_descripcion NVARCHAR(255) NOT NULL
-	);
-
-	CREATE TABLE categoria (
-		categoria_codigo NUMERIC(10) IDENTITY(1,1) PRIMARY KEY,
-		categoria NVARCHAR(50) NOT NULL
-	);
-
-	CREATE UNIQUE INDEX index_categoria ON categoria(categoria);
-	
-	CREATE TABLE marca (
-		marca_codigo NUMERIC(10) IDENTITY(1,1) PRIMARY KEY,
-		marca NVARCHAR(50) NOT NULL
-	);
-
-	CREATE UNIQUE INDEX index_marca ON marca(marca);
-	
-	CREATE TABLE material (
-		material_codigo NUMERIC(10) IDENTITY(1,1) PRIMARY KEY,
-		material NVARCHAR(50) NOT NULL
-	);
-
-	CREATE UNIQUE INDEX index_material ON material(material);
-
-	CREATE TABLE tipo_descuento_compra (
-		tipo_descuento_codigo NUMERIC(10) IDENTITY(1,1) PRIMARY KEY,
-		compra_descuento_concepto NVARCHAR(255) NOT NULL -- El concepto del descuento es el mismo que en la columna de "VENTA_DESCUENTO_CONCEPTO" --
-	);
-
-	CREATE UNIQUE INDEX index_descuento_compra ON tipo_descuento_compra(compra_descuento_concepto);
-
-	CREATE TABLE tipo_descuento_venta (
-		tipo_descuento_codigo NUMERIC(10) IDENTITY(1,1) PRIMARY KEY,
-		venta_descuento_concepto NVARCHAR(255) NOT NULL
-	);
-
-	CREATE UNIQUE INDEX index_descuento_venta ON tipo_descuento_venta(venta_descuento_concepto); 
+	-- LOCALIDAD
 
 	CREATE TABLE localidad (
 		localidad_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
@@ -114,7 +66,51 @@ BEGIN
 		nombre_localidad NVARCHAR(255) NOT NULL
 	);
 
-	CREATE INDEX index_localidad ON localidad(codigo_postal, nombre_localidad); 
+	-- PRODUCTO
+
+	CREATE TABLE tipo_variante (
+		tipo_variante_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
+		tipo_variante_descripcion NVARCHAR(255) NOT NULL
+	);
+	
+	CREATE TABLE variante (
+		variante_codigo INTEGER IDENTITY(1,1) PRIMARY KEY, 
+		tipo_variante_codigo INTEGER REFERENCES tipo_variante,
+		variante_descripcion NVARCHAR(255)
+	);
+
+	CREATE TABLE categoria (
+		categoria_codigo NUMERIC(10) IDENTITY(1,1) PRIMARY KEY,
+		categoria NVARCHAR(50) NOT NULL
+	);
+
+	CREATE TABLE marca (
+		marca_codigo NUMERIC(10) IDENTITY(1,1) PRIMARY KEY,
+		marca NVARCHAR(50) NOT NULL
+	);
+	
+	CREATE TABLE material (
+		material_codigo NUMERIC(10) IDENTITY(1,1) PRIMARY KEY,
+		material NVARCHAR(50) NOT NULL
+	);
+
+	CREATE TABLE producto (
+		producto_codigo NVARCHAR(50) PRIMARY KEY,
+		material_codigo NUMERIC(10) REFERENCES material,
+		marca_codigo NUMERIC(10) REFERENCES marca,
+		categoria_codigo NUMERIC(10) REFERENCES categoria,
+		producto_descripcion NVARCHAR(50)
+	);
+
+	CREATE TABLE producto_variante (
+		producto_variante_codigo NVARCHAR(50) PRIMARY KEY,
+		producto_codigo NVARCHAR(50) REFERENCES producto,
+		variante_codigo INTEGER REFERENCES variante,
+		precio_actual DECIMAL(18,2),
+		stock_disponible DECIMAL(18,0)
+	);
+
+	-- VENTA
 
 	CREATE TABLE cliente (
 		cliente_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
@@ -128,48 +124,10 @@ BEGIN
 		cliente_mail NVARCHAR(255),
 	);
 
-	CREATE INDEX index_cliente ON cliente(cliente_apellido, cliente_dni);
-
-	CREATE TABLE proveedor (
-		proveedor_razon_social NVARCHAR(50),
-		proveedor_cuit NVARCHAR(50) PRIMARY KEY,
-		proveedor_mail NVARCHAR(50),
-		proveedor_domicilio NVARCHAR(50),
-		proveedor_localidad INTEGER REFERENCES localidad
-	);
-
-	CREATE TABLE producto (
-		producto_codigo NVARCHAR(50) PRIMARY KEY,
-		material_codigo NUMERIC(10) REFERENCES material,
-		marca_codigo NUMERIC(10) REFERENCES marca,
-		categoria_codigo NUMERIC(10) REFERENCES categoria,
-		producto_descripcion NVARCHAR(50)
-	);
-	
-	CREATE TABLE variante (
-		variante_codigo INTEGER IDENTITY(1,1) PRIMARY KEY, 
-		tipo_variante_codigo INTEGER REFERENCES tipo_variante,
-		variante_descripcion NVARCHAR(255)
-	);
-
-	CREATE TABLE producto_variante (
-		producto_variante_codigo NVARCHAR(50) PRIMARY KEY,
-		producto_codigo NVARCHAR(50) REFERENCES producto,
-		variante_codigo INTEGER REFERENCES variante,
-		precio_actual DECIMAL(18,2),
-		stock_disponible DECIMAL(18,0)
-	);
-
 	CREATE TABLE venta_canal (
 		venta_canal_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
 		venta_canal NVARCHAR(2255),
 		venta_canal_costo DECIMAL(18,2)
-	);
-
-	CREATE TABLE tipo_medio_pago (
-		tipo_mp_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
-		tipo_mp NVARCHAR(255),
-		medio_pago_costo DECIMAL(18,2)
 	);
 
 	CREATE TABLE venta (
@@ -181,12 +139,33 @@ BEGIN
 		venta_canal_codigo INTEGER REFERENCES venta_canal
 	);
 
+	CREATE TABLE cupon (
+		venta_cupon_codigo NVARCHAR(255) PRIMARY KEY,
+		venta_cupon_fecha_desde DATE NOT NULL,
+		venta_cupon_fecha_hasta DATE NOT NULL,
+		venta_cupon_valor DECIMAL(18,2) NOT NULL,
+		venta_cupon_tipo NVARCHAR(50) NOT NULL
+	);
+	
+	CREATE TABLE cupon_canjeado (
+		venta_cupon_codigo NVARCHAR(255) REFERENCES cupon,
+		venta_codigo DECIMAL(19,0) REFERENCES venta,
+		venta_cupon_importe DECIMAL(18,2),
+		PRIMARY KEY(venta_cupon_codigo, venta_codigo)
+	);
+
+	CREATE TABLE producto_vendido (
+		venta_codigo DECIMAL(19,0) REFERENCES venta,
+		producto_variante_codigo NVARCHAR(50) REFERENCES producto_variante,
+		venta_prod_cantidad DECIMAL(18,0),
+		venta_prod_precio DECIMAL(18,2), 
+		PRIMARY KEY(venta_codigo, producto_variante_codigo)
+	);
+
 	CREATE TABLE medio_envio (
 		medio_envio_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
 		medio_envio NVARCHAR(255)
 	);
-
-	CREATE UNIQUE INDEX index_medio_envio ON medio_envio(medio_envio);
 
 	CREATE TABLE envio (
 		envio_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
@@ -197,19 +176,14 @@ BEGIN
 		importe DECIMAL(18,2),
 	);
 
-	CREATE TABLE medio_pago_venta (
-		medio_pago_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
-		venta_codigo DECIMAL(19,0) REFERENCES venta,
-		tipo_medio_pago INTEGER REFERENCES tipo_medio_pago,
-		importe DECIMAL(18,2),
-	);
+	-- COMPRA
 
-	CREATE TABLE descuento_venta (
-		descuento_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
-		venta_codigo DECIMAL(19,0) REFERENCES venta,
-		tipo_descuento_codigo NUMERIC(10) REFERENCES tipo_descuento_venta,
-		venta_descuento_importe DECIMAL(18,2),
-		importe DECIMAL(18,2)
+	CREATE TABLE proveedor (
+		proveedor_razon_social NVARCHAR(50),
+		proveedor_cuit NVARCHAR(50) PRIMARY KEY,
+		proveedor_mail NVARCHAR(50),
+		proveedor_domicilio NVARCHAR(50),
+		proveedor_localidad INTEGER REFERENCES localidad
 	);
 
 	CREATE TABLE compra (
@@ -218,21 +192,6 @@ BEGIN
 		compra_fecha DATE NOT NULL,
 		importe DECIMAL(18,2),
 		compra_total DECIMAL(18,2)
-	);
-
-	CREATE TABLE medio_pago_compra (
-		medio_pago_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
-		compra_codigo DECIMAL(19,0) REFERENCES compra,
-		tipo_medio_pago INTEGER REFERENCES tipo_medio_pago,
-		importe DECIMAL(18,2)
-	);
-
-	CREATE TABLE descuento_compra (
-		descuento_compra_codigo DECIMAL(19,0) PRIMARY KEY,
-		compra_codigo DECIMAL(19,0) REFERENCES compra,
-		descuento_compra_valor DECIMAL(18,2),
-		tipo_descuento_codigo NUMERIC(10) REFERENCES tipo_descuento_compra,
-		importe DECIMAL(18,2)
 	);
 	
 	CREATE TABLE producto_comprado (
@@ -243,24 +202,70 @@ BEGIN
 		PRIMARY KEY (compra_codigo, producto_variante_codigo)
 	);
 
-	CREATE TABLE producto_vendido (
-		venta_codigo DECIMAL(19,0) REFERENCES venta,
-		producto_variante_codigo NVARCHAR(50) REFERENCES producto_variante,
-		venta_prod_cantidad DECIMAL(18,0),
-		venta_prod_precio DECIMAL(18,2), 
-		PRIMARY KEY(venta_codigo, producto_variante_codigo)
+	-- MEDIO DE PAGO
+
+	CREATE TABLE tipo_medio_pago (
+		tipo_mp_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
+		tipo_mp NVARCHAR(255),
+		medio_pago_costo DECIMAL(18,2)
 	);
-	
-	CREATE TABLE cupon_canjeado (
-		venta_cupon_codigo NVARCHAR(255) REFERENCES cupon,
+
+	CREATE TABLE medio_pago_venta (
+		medio_pago_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
 		venta_codigo DECIMAL(19,0) REFERENCES venta,
-		venta_cupon_importe DECIMAL(18,2),
-		PRIMARY KEY(venta_cupon_codigo, venta_codigo)
+		tipo_medio_pago INTEGER REFERENCES tipo_medio_pago,
+		importe DECIMAL(18,2)
+	);
+
+	CREATE TABLE medio_pago_compra (
+		medio_pago_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
+		compra_codigo DECIMAL(19,0) REFERENCES compra,
+		tipo_medio_pago INTEGER REFERENCES tipo_medio_pago,
+		importe DECIMAL(18,2)
+	);
+
+	-- DESCUENTO
+
+	CREATE TABLE tipo_descuento_venta (
+		tipo_descuento_codigo NUMERIC(10) IDENTITY(1,1) PRIMARY KEY,
+		venta_descuento_concepto NVARCHAR(255) NOT NULL
+	);
+
+	CREATE TABLE descuento_venta (
+		descuento_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
+		venta_codigo DECIMAL(19,0) REFERENCES venta,
+		tipo_descuento_codigo NUMERIC(10) REFERENCES tipo_descuento_venta,
+		venta_descuento_importe DECIMAL(18,2)
+	);
+
+	CREATE TABLE descuento_compra (
+		descuento_compra_codigo DECIMAL(19,0) PRIMARY KEY,
+		compra_codigo DECIMAL(19,0) REFERENCES compra,
+		descuento_compra_valor DECIMAL(18,2),
+		importe DECIMAL(18,2)
 	);
 END
 GO
 
-EXEC CREATE_TABLES
+IF EXISTS(SELECT [name] FROM sys.procedures WHERE [name]='CREATE_INDEXES')
+	DROP PROCEDURE CREATE_INDEXES;
+GO
+
+CREATE PROCEDURE CREATE_INDEXES
+AS
+BEGIN
+	CREATE UNIQUE INDEX index_provincia ON provincia(nombre_provincia);
+	CREATE INDEX index_localidad ON localidad(codigo_postal, nombre_localidad);
+
+	CREATE UNIQUE INDEX index_categoria ON categoria(categoria);
+	CREATE UNIQUE INDEX index_marca ON marca(marca);
+	CREATE UNIQUE INDEX index_material ON material(material);
+
+	CREATE INDEX index_cliente ON cliente(cliente_apellido, cliente_dni);
+	CREATE UNIQUE INDEX index_medio_envio ON medio_envio(medio_envio);
+
+	CREATE UNIQUE INDEX index_descuento_venta ON tipo_descuento_venta(venta_descuento_concepto); 
+END
 GO
 
 IF EXISTS(SELECT [name] FROM sys.procedures WHERE [name]='MIGRAR')
@@ -270,7 +275,6 @@ GO
 CREATE PROCEDURE MIGRAR 
 AS
 BEGIN
-	
 	-- PROVINCIA
 
 	INSERT INTO provincia (nombre_provincia)
@@ -297,28 +301,6 @@ BEGIN
 
 	-- PRODUCTO
 
-	INSERT INTO material (material)
-	SELECT DISTINCT PRODUCTO_MATERIAL
-	FROM GD2C2022.gd_esquema.Maestra
-	WHERE PRODUCTO_MATERIAL IS NOT NULL
-
-	INSERT INTO marca (marca)
-	SELECT DISTINCT PRODUCTO_MARCA
-	FROM GD2C2022.gd_esquema.Maestra
-	WHERE PRODUCTO_MARCA IS NOT NULL
-
-	INSERT INTO categoria (categoria)
-	SELECT DISTINCT PRODUCTO_CATEGORIA
-	FROM GD2C2022.gd_esquema.Maestra
-	WHERE PRODUCTO_CATEGORIA IS NOT NULL
-
-	INSERT INTO producto
-	SELECT DISTINCT PRODUCTO_CODIGO, material_codigo, marca_codigo, categoria_codigo, PRODUCTO_DESCRIPCION
-	FROM GD2C2022.gd_esquema.Maestra maestra
-	JOIN material ON maestra.PRODUCTO_MATERIAL = material.material
-	JOIN marca ON maestra.PRODUCTO_MARCA = marca.marca
-	JOIN categoria ON maestra.PRODUCTO_CATEGORIA = categoria.categoria
-	
 	INSERT INTO tipo_variante (tipo_variante_descripcion)
 	SELECT DISTINCT PRODUCTO_TIPO_VARIANTE
 	FROM GD2C2022.gd_esquema.Maestra
@@ -330,26 +312,41 @@ BEGIN
 	ON PRODUCTO_TIPO_VARIANTE = tipo_variante_descripcion
 	WHERE PRODUCTO_TIPO_VARIANTE IS NOT NULL
 
-	INSERT INTO producto_variante (producto_variante_codigo, producto_codigo, variante_codigo)
-	SELECT DISTINCT PRODUCTO_VARIANTE_CODIGO, PRODUCTO_CODIGO, variante_codigo
-	FROM GD2C2022.gd_esquema.Maestra JOIN variante
-	ON PRODUCTO_VARIANTE = variante_descripcion
-	WHERE PRODUCTO_VARIANTE_CODIGO IS NOT NULL
+	INSERT INTO categoria (categoria)
+	SELECT DISTINCT PRODUCTO_CATEGORIA
+	FROM GD2C2022.gd_esquema.Maestra
+	WHERE PRODUCTO_CATEGORIA IS NOT NULL
 
-	-- TIPO MEDIO PAGO
+	INSERT INTO marca (marca)
+	SELECT DISTINCT PRODUCTO_MARCA
+	FROM GD2C2022.gd_esquema.Maestra
+	WHERE PRODUCTO_MARCA IS NOT NULL
 
-	INSERT INTO tipo_medio_pago (tipo_mp, medio_pago_costo)
-	SELECT DISTINCT mp, VENTA_MEDIO_PAGO_COSTO
+	INSERT INTO material (material)
+	SELECT DISTINCT PRODUCTO_MATERIAL
+	FROM GD2C2022.gd_esquema.Maestra
+	WHERE PRODUCTO_MATERIAL IS NOT NULL
+
+	INSERT INTO producto
+	SELECT DISTINCT PRODUCTO_CODIGO, material_codigo, marca_codigo, categoria_codigo, PRODUCTO_DESCRIPCION
+	FROM GD2C2022.gd_esquema.Maestra maestra
+	JOIN material ON maestra.PRODUCTO_MATERIAL = material.material
+	JOIN marca ON maestra.PRODUCTO_MARCA = marca.marca
+	JOIN categoria ON maestra.PRODUCTO_CATEGORIA = categoria.categoria
+
+	INSERT INTO producto_variante (producto_variante_codigo, producto_codigo, variante_codigo, precio_actual, stock_disponible)
+	SELECT subq.PRODUCTO_VARIANTE_CODIGO, subq.PRODUCTO_CODIGO, variante_codigo, subq.COMPRA_PRODUCTO_PRECIO, SUM(COMPRA_PRODUCTO_CANTIDAD)
 	FROM (
-		SELECT DISTINCT VENTA_MEDIO_PAGO mp
+		SELECT
+			PRODUCTO_VARIANTE_CODIGO, PRODUCTO_CODIGO, COMPRA_PRODUCTO_PRECIO,
+			ROW_NUMBER() OVER(PARTITION BY PRODUCTO_VARIANTE_CODIGO ORDER BY COMPRA_FECHA DESC) AS roworder
 		FROM GD2C2022.gd_esquema.Maestra
-		WHERE VENTA_MEDIO_PAGO IS NOT NULL
-		UNION
-		SELECT DISTINCT COMPRA_MEDIO_PAGO mp
-		FROM GD2C2022.gd_esquema.Maestra
-		WHERE COMPRA_MEDIO_PAGO IS NOT NULL
-	) subq LEFT OUTER JOIN GD2C2022.gd_esquema.Maestra
-	ON subq.mp = VENTA_MEDIO_PAGO
+		WHERE PRODUCTO_VARIANTE_CODIGO is not null and COMPRA_PRODUCTO_PRECIO is not null
+	) subq
+	JOIN GD2C2022.gd_esquema.Maestra m ON subq.PRODUCTO_VARIANTE_CODIGO = m.PRODUCTO_VARIANTE_CODIGO
+	JOIN variante ON m.PRODUCTO_VARIANTE = variante_descripcion
+	WHERE roworder = 1
+	GROUP BY subq.PRODUCTO_VARIANTE_CODIGO, variante_codigo, subq.PRODUCTO_CODIGO, subq.COMPRA_PRODUCTO_PRECIO
 
 	-- VENTA
 
@@ -372,17 +369,6 @@ BEGIN
 	AND m.CLIENTE_APELLIDO = c.cliente_apellido
 	AND m.CLIENTE_DNI = c.cliente_dni
 	JOIN venta_canal v ON m.VENTA_CANAL = v.venta_canal
-	WHERE VENTA_CODIGO IS NOT NULL
-
-	INSERT INTO tipo_descuento_venta (venta_descuento_concepto)
-	SELECT DISTINCT VENTA_DESCUENTO_CONCEPTO
-	FROM GD2C2022.gd_esquema.Maestra
-	WHERE VENTA_DESCUENTO_CONCEPTO IS NOT NULL
-
-	INSERT INTO descuento_venta (venta_codigo, venta_descuento_importe, tipo_descuento_codigo)
-	SELECT DISTINCT VENTA_CODIGO, VENTA_DESCUENTO_IMPORTE, tipo_descuento_codigo
-	FROM GD2C2022.gd_esquema.Maestra m JOIN tipo_descuento_venta d
-	ON m.VENTA_DESCUENTO_CONCEPTO = d.venta_descuento_concepto
 	WHERE VENTA_CODIGO IS NOT NULL
 
 	INSERT INTO cupon
@@ -408,12 +394,6 @@ BEGIN
 		GROUP BY venta_codigo
 	) subq
 	ON v.venta_codigo = subq.venta_codigo
-
-	INSERT INTO medio_pago_venta (venta_codigo, tipo_medio_pago, importe)
-	SELECT DISTINCT m.VENTA_CODIGO, tipo_mp_codigo, importe
-	FROM GD2C2022.gd_esquema.Maestra m
-	JOIN tipo_medio_pago t ON t.tipo_mp = m.VENTA_MEDIO_PAGO
-	JOIN venta v ON m.VENTA_CODIGO = v.venta_codigo
 
 	INSERT INTO medio_envio (medio_envio)
 	SELECT DISTINCT VENTA_MEDIO_ENVIO
@@ -442,16 +422,6 @@ BEGIN
 	FROM GD2C2022.gd_esquema.Maestra m 
 	WHERE COMPRA_NUMERO IS NOT NULL
 
-	INSERT INTO tipo_descuento_compra (compra_descuento_concepto)
-	SELECT DISTINCT VENTA_DESCUENTO_CONCEPTO
-	FROM GD2C2022.gd_esquema.Maestra
-	WHERE VENTA_DESCUENTO_CONCEPTO IS NOT NULL
-
-	INSERT INTO descuento_compra (descuento_compra_codigo, compra_codigo, descuento_compra_valor)
-	SELECT DISTINCT DESCUENTO_COMPRA_CODIGO, COMPRA_NUMERO, DESCUENTO_COMPRA_VALOR
-	FROM GD2C2022.gd_esquema.Maestra
-	WHERE DESCUENTO_COMPRA_CODIGO IS NOT NULL
-
 	INSERT INTO producto_comprado (compra_codigo, producto_variante_codigo, compra_prod_cantidad, compra_prod_precio)
 	SELECT COMPRA_NUMERO, PRODUCTO_VARIANTE_CODIGO, SUM(COMPRA_PRODUCTO_CANTIDAD), COMPRA_PRODUCTO_PRECIO
 	FROM GD2C2022.gd_esquema.Maestra
@@ -466,15 +436,67 @@ BEGIN
 	) subq
 	ON c.compra_codigo = subq.compra_codigo
 
+	-- MEDIO DE PAGO
+
+	INSERT INTO tipo_medio_pago (tipo_mp, medio_pago_costo)
+	SELECT DISTINCT mp, VENTA_MEDIO_PAGO_COSTO
+	FROM (
+		SELECT DISTINCT VENTA_MEDIO_PAGO mp
+		FROM GD2C2022.gd_esquema.Maestra
+		WHERE VENTA_MEDIO_PAGO IS NOT NULL
+		UNION
+		SELECT DISTINCT COMPRA_MEDIO_PAGO mp
+		FROM GD2C2022.gd_esquema.Maestra
+		WHERE COMPRA_MEDIO_PAGO IS NOT NULL
+	) subq LEFT OUTER JOIN GD2C2022.gd_esquema.Maestra
+	ON subq.mp = VENTA_MEDIO_PAGO
+
+	INSERT INTO medio_pago_venta (venta_codigo, tipo_medio_pago, importe)
+	SELECT DISTINCT m.VENTA_CODIGO, tipo_mp_codigo, importe
+	FROM GD2C2022.gd_esquema.Maestra m
+	JOIN tipo_medio_pago t ON t.tipo_mp = m.VENTA_MEDIO_PAGO
+	JOIN venta v ON m.VENTA_CODIGO = v.venta_codigo
+
 	INSERT INTO medio_pago_compra (compra_codigo, tipo_medio_pago, importe)
 	SELECT DISTINCT COMPRA_NUMERO, tipo_mp_codigo, importe
 	FROM GD2C2022.gd_esquema.Maestra m
 	JOIN tipo_medio_pago t ON t.tipo_mp = m.COMPRA_MEDIO_PAGO
 	JOIN compra c ON c.compra_codigo = m.COMPRA_NUMERO
+
+	-- DESCUENTO
+
+	INSERT INTO tipo_descuento_venta (venta_descuento_concepto)
+	SELECT DISTINCT VENTA_DESCUENTO_CONCEPTO
+	FROM GD2C2022.gd_esquema.Maestra
+	WHERE VENTA_DESCUENTO_CONCEPTO IS NOT NULL
+
+	INSERT INTO descuento_venta (venta_codigo, venta_descuento_importe, tipo_descuento_codigo)
+	SELECT DISTINCT VENTA_CODIGO, VENTA_DESCUENTO_IMPORTE, tipo_descuento_codigo
+	FROM GD2C2022.gd_esquema.Maestra m JOIN tipo_descuento_venta d
+	ON m.VENTA_DESCUENTO_CONCEPTO = d.venta_descuento_concepto
+	WHERE VENTA_CODIGO IS NOT NULL
+
+	INSERT INTO descuento_compra (descuento_compra_codigo, compra_codigo, descuento_compra_valor)
+	SELECT DISTINCT DESCUENTO_COMPRA_CODIGO, COMPRA_NUMERO, DESCUENTO_COMPRA_VALOR
+	FROM GD2C2022.gd_esquema.Maestra
+	WHERE DESCUENTO_COMPRA_CODIGO IS NOT NULL
 END
 GO
 
-EXEC MIGRAR
+
+BEGIN TRY
+	BEGIN TRANSACTION
+		EXEC DROP_TABLES
+		EXEC CREATE_TABLES
+		EXEC CREATE_INDEXES
+		EXEC MIGRAR
+	COMMIT TRANSACTION
+END TRY
+
+BEGIN CATCH
+	ROLLBACK TRANSACTION
+	SELECT ERROR_MESSAGE() AS error
+END CATCH
 GO
 
 /**
