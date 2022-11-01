@@ -149,8 +149,7 @@ BEGIN
 
 	CREATE TABLE tipo_medio_pago (
 		tipo_mp_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
-		tipo_mp NVARCHAR(255),
-		medio_pago_costo DECIMAL(18,2)
+		tipo_mp NVARCHAR(255)
 	);
 
 	CREATE TABLE medio_pago_compra (
@@ -164,6 +163,7 @@ BEGIN
 		medio_pago_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
 		venta_codigo DECIMAL(19,0) REFERENCES venta,
 		tipo_medio_pago INTEGER REFERENCES tipo_medio_pago,
+		medio_pago_costo DECIMAL(18,2),
 		importe DECIMAL(18,2)
 	);
 
@@ -303,6 +303,7 @@ BEGIN
 
 	EXEC SET_IMPORTE 'compra', 'compra_codigo'
 	EXEC SET_IMPORTE 'medio_pago_compra', 'compra_codigo'
+	EXEC SET_IMPORTE 'descuento_compra', 'compra_codigo'
 	
 	DROP TABLE #importes
 END
@@ -422,7 +423,7 @@ BEGIN
 	SELECT DISTINCT VENTA_CANAL, VENTA_CANAL_COSTO
 	FROM GD2C2022.gd_esquema.Maestra
 	WHERE VENTA_CANAL IS NOT NULL
-
+	
 	INSERT INTO venta (venta_codigo, venta_fecha, cliente_codigo, venta_total, venta_canal_codigo)
 	SELECT DISTINCT VENTA_CODIGO, VENTA_FECHA, cliente_codigo, VENTA_TOTAL, venta_canal_codigo
 	FROM GD2C2022.gd_esquema.Maestra m
@@ -451,31 +452,27 @@ BEGIN
 
 	INSERT INTO cupon_canjeado
 	SELECT DISTINCT VENTA_CUPON_CODIGO, VENTA_CODIGO, VENTA_CUPON_IMPORTE
-	FROM GD2C2022.gd_esquema.Maestra m
-	WHERE VENTA_CODIGO IS NOT NULL AND VENTA_CUPON_CODIGO IS NOT NULL
-
+	FROM GD2C2022.gd_esquema.Maestra
+	WHERE VENTA_CUPON_CODIGO IS NOT NULL
+	
 	-- MEDIO DE PAGO
 
-	INSERT INTO tipo_medio_pago (tipo_mp, medio_pago_costo)
-	SELECT medio_pago, SUM(medio_pago_costo)
-	FROM (
-		SELECT DISTINCT VENTA_MEDIO_PAGO medio_pago, VENTA_MEDIO_PAGO_COSTO medio_pago_costo
-		FROM GD2C2022.gd_esquema.Maestra
-		WHERE VENTA_MEDIO_PAGO IS NOT NULL
-		UNION
-		SELECT DISTINCT COMPRA_MEDIO_PAGO medio_pago, NULL medio_pago_costo
-		FROM GD2C2022.gd_esquema.Maestra
-		WHERE COMPRA_MEDIO_PAGO IS NOT NULL
-	) subq
-	GROUP BY medio_pago
+	INSERT INTO tipo_medio_pago (tipo_mp)
+	SELECT DISTINCT VENTA_MEDIO_PAGO
+	FROM GD2C2022.gd_esquema.Maestra
+	WHERE VENTA_MEDIO_PAGO IS NOT NULL
+	UNION
+	SELECT DISTINCT COMPRA_MEDIO_PAGO
+	FROM GD2C2022.gd_esquema.Maestra
+	WHERE COMPRA_MEDIO_PAGO IS NOT NULL
 
 	INSERT INTO medio_pago_compra (compra_codigo, tipo_medio_pago)
 	SELECT DISTINCT COMPRA_NUMERO, tipo_mp_codigo
 	FROM GD2C2022.gd_esquema.Maestra m
 	JOIN tipo_medio_pago t ON t.tipo_mp = m.COMPRA_MEDIO_PAGO
 
-	INSERT INTO medio_pago_venta (venta_codigo, tipo_medio_pago)
-	SELECT DISTINCT m.VENTA_CODIGO, tipo_mp_codigo
+	INSERT INTO medio_pago_venta (venta_codigo, tipo_medio_pago, medio_pago_costo)
+	SELECT DISTINCT m.VENTA_CODIGO, tipo_mp_codigo, VENTA_MEDIO_PAGO_COSTO
 	FROM GD2C2022.gd_esquema.Maestra m
 	JOIN tipo_medio_pago t ON t.tipo_mp = m.VENTA_MEDIO_PAGO
 
