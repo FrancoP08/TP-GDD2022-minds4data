@@ -69,6 +69,24 @@ BEGIN
 		nombre_localidad NVARCHAR(255) NOT NULL
 	);
 
+	-- COMPRA
+
+	CREATE TABLE proveedor (
+		proveedor_razon_social NVARCHAR(50),
+		proveedor_cuit NVARCHAR(50) PRIMARY KEY,
+		proveedor_mail NVARCHAR(50),
+		proveedor_domicilio NVARCHAR(50),
+		proveedor_localidad INTEGER REFERENCES localidad
+	);
+
+	CREATE TABLE compra (
+		compra_codigo DECIMAL(19,0) PRIMARY KEY,
+		proveedor_codigo NVARCHAR(50) REFERENCES proveedor,
+		compra_fecha DATE NOT NULL,
+		importe DECIMAL(18,2),
+		compra_total DECIMAL(18,2)
+	);
+	
 	-- VENTA
 
 	CREATE TABLE cliente (
@@ -98,6 +116,20 @@ BEGIN
 		venta_canal_codigo INTEGER REFERENCES venta_canal
 	);
 
+	CREATE TABLE medio_envio (
+		medio_envio_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
+		medio_envio NVARCHAR(255)
+	);
+
+	CREATE TABLE envio (
+		envio_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
+		venta_codigo DECIMAL(19,0) REFERENCES venta,
+		localidad_codigo INTEGER REFERENCES localidad,
+		precio_envio DECIMAL(18,2),
+		medio_envio INTEGER REFERENCES medio_envio,
+		importe DECIMAL(18,2),
+	);
+
 	CREATE TABLE cupon (
 		venta_cupon_codigo NVARCHAR(255) PRIMARY KEY,
 		venta_cupon_fecha_desde DATE NOT NULL,
@@ -113,38 +145,6 @@ BEGIN
 		PRIMARY KEY(venta_cupon_codigo, venta_codigo)
 	);
 
-	CREATE TABLE medio_envio (
-		medio_envio_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
-		medio_envio NVARCHAR(255)
-	);
-
-	CREATE TABLE envio (
-		envio_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
-		venta_codigo DECIMAL(19,0) REFERENCES venta,
-		localidad_codigo INTEGER REFERENCES localidad,
-		precio_envio DECIMAL(18,2),
-		medio_envio INTEGER REFERENCES medio_envio,
-		importe DECIMAL(18,2),
-	);
-
-	-- COMPRA
-
-	CREATE TABLE proveedor (
-		proveedor_razon_social NVARCHAR(50),
-		proveedor_cuit NVARCHAR(50) PRIMARY KEY,
-		proveedor_mail NVARCHAR(50),
-		proveedor_domicilio NVARCHAR(50),
-		proveedor_localidad INTEGER REFERENCES localidad
-	);
-
-	CREATE TABLE compra (
-		compra_codigo DECIMAL(19,0) PRIMARY KEY,
-		proveedor_codigo NVARCHAR(50) REFERENCES proveedor,
-		compra_fecha DATE NOT NULL,
-		importe DECIMAL(18,2),
-		compra_total DECIMAL(18,2)
-	);
-
 	-- MEDIO DE PAGO
 
 	CREATE TABLE tipo_medio_pago (
@@ -153,16 +153,16 @@ BEGIN
 		medio_pago_costo DECIMAL(18,2)
 	);
 
-	CREATE TABLE medio_pago_venta (
+	CREATE TABLE medio_pago_compra (
 		medio_pago_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
-		venta_codigo DECIMAL(19,0) REFERENCES venta,
+		compra_codigo DECIMAL(19,0) REFERENCES compra,
 		tipo_medio_pago INTEGER REFERENCES tipo_medio_pago,
 		importe DECIMAL(18,2)
 	);
 
-	CREATE TABLE medio_pago_compra (
+	CREATE TABLE medio_pago_venta (
 		medio_pago_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
-		compra_codigo DECIMAL(19,0) REFERENCES compra,
+		venta_codigo DECIMAL(19,0) REFERENCES venta,
 		tipo_medio_pago INTEGER REFERENCES tipo_medio_pago,
 		importe DECIMAL(18,2)
 	);
@@ -233,20 +233,20 @@ BEGIN
 		stock_disponible DECIMAL(18,0)
 	);
 
-	CREATE TABLE producto_vendido (
-		venta_codigo DECIMAL(19,0) REFERENCES venta,
-		producto_variante_codigo NVARCHAR(50) REFERENCES producto_variante,
-		venta_prod_cantidad DECIMAL(18,0),
-		venta_prod_precio DECIMAL(18,2), 
-		PRIMARY KEY(venta_codigo, producto_variante_codigo)
-	);
-
 	CREATE TABLE producto_comprado (
 		compra_codigo DECIMAL(19,0) REFERENCES compra,
 		producto_variante_codigo NVARCHAR(50) REFERENCES producto_variante,
 		compra_prod_cantidad DECIMAL(18,0),
 		compra_prod_precio DECIMAL(18,2),
 		PRIMARY KEY (compra_codigo, producto_variante_codigo)
+	);
+
+	CREATE TABLE producto_vendido (
+		venta_codigo DECIMAL(19,0) REFERENCES venta,
+		producto_variante_codigo NVARCHAR(50) REFERENCES producto_variante,
+		venta_prod_cantidad DECIMAL(18,0),
+		venta_prod_precio DECIMAL(18,2), 
+		PRIMARY KEY(venta_codigo, producto_variante_codigo)
 	);
 END
 GO
@@ -278,26 +278,19 @@ GO
 EXEC CREATE_INDEXES
 GO
 
-CREATE TRIGGER UPDATE_IMPORTE_VENTA ON producto_vendido
-AFTER INSERT AS
+IF EXISTS(SELECT [name] FROM sys.procedures WHERE [name]='SET_IMPORTE')
+	DROP PROCEDURE SET_IMPORTE;
+GO
+
+CREATE PROCEDURE SET_IMPORTE @tabla VARCHAR(30), @columna VARCHAR(15)
+AS
 BEGIN
-	SELECT venta_codigo, SUM(venta_prod_cantidad * venta_prod_precio) importe
-	INTO #importes FROM inserted
-	GROUP BY venta_codigo
-	
-	UPDATE venta SET importe = i.importe
-	FROM venta v JOIN #importes i
-	ON v.venta_codigo = i.venta_codigo
-
-	UPDATE envio SET importe = i.importe
-	FROM envio v JOIN #importes i
-	ON v.venta_codigo = i.venta_codigo
-
-	UPDATE medio_pago_venta SET importe = i.importe
-	FROM medio_pago_venta v JOIN #importes i
-	ON v.venta_codigo = i.venta_codigo
-	
-	DROP TABLE #importes
+	DECLARE @qry VARCHAR(500)
+	SET @qry =
+		'UPDATE ' + @tabla + ' SET importe = COALESCE(t.importe + i.importe, i.importe) ' +
+		'FROM ' + @tabla + ' t JOIN #importes i ' +
+		'ON t.' + @columna + ' = i.' + @columna
+	EXEC(@qry)
 END
 GO
 
@@ -307,16 +300,67 @@ BEGIN
 	SELECT compra_codigo, SUM(compra_prod_cantidad * compra_prod_precio) importe
 	INTO #importes FROM inserted
 	GROUP BY compra_codigo
-	
-	UPDATE compra SET importe = i.importe
-	FROM compra c JOIN #importes i
-	ON c.compra_codigo = i.compra_codigo
 
-	UPDATE medio_pago_compra SET importe = i.importe
-	FROM medio_pago_compra c JOIN #importes i
-	ON c.compra_codigo = i.compra_codigo
+	EXEC SET_IMPORTE 'compra', 'compra_codigo'
+	EXEC SET_IMPORTE 'medio_pago_compra', 'compra_codigo'
 	
 	DROP TABLE #importes
+END
+GO
+
+CREATE TRIGGER UPDATE_IMPORTE_VENTA ON producto_vendido
+AFTER INSERT AS
+BEGIN
+	SELECT venta_codigo, SUM(venta_prod_cantidad * venta_prod_precio) importe
+	INTO #importes FROM inserted
+	GROUP BY venta_codigo
+
+	EXEC SET_IMPORTE 'venta', 'venta_codigo'
+	EXEC SET_IMPORTE 'envio', 'venta_codigo'
+	EXEC SET_IMPORTE 'medio_pago_venta', 'venta_codigo'
+	
+	DROP TABLE #importes
+END
+GO
+
+CREATE TRIGGER SUMAR_STOCK ON producto_comprado
+AFTER INSERT AS
+BEGIN
+	UPDATE producto_variante
+	SET stock_disponible = COALESCE(stock_disponible + stock, stock)
+	FROM (
+		SELECT producto_variante_codigo, SUM(compra_prod_cantidad) stock
+		FROM inserted
+		GROUP BY producto_variante_codigo
+	) subq JOIN producto_variante p ON p.producto_variante_codigo = subq.producto_variante_codigo
+END
+GO
+
+CREATE TRIGGER RESTAR_STOCK ON producto_vendido
+AFTER INSERT AS
+BEGIN
+	UPDATE producto_variante
+	SET stock_disponible = COALESCE(stock_disponible - stock, stock)
+	FROM (
+		SELECT producto_variante_codigo, SUM(venta_prod_cantidad) stock
+		FROM inserted
+		GROUP BY producto_variante_codigo
+	) subq JOIN producto_variante p ON p.producto_variante_codigo = subq.producto_variante_codigo
+END
+GO
+
+CREATE TRIGGER UPDATE_PRECIO_ACTUAL ON producto_comprado
+AFTER INSERT AS
+BEGIN
+	UPDATE producto_variante
+	SET precio_actual = compra_prod_precio
+	FROM (
+		SELECT
+			producto_variante_codigo, compra_prod_precio,
+			ROW_NUMBER() OVER(PARTITION BY producto_variante_codigo ORDER BY compra_fecha DESC) roworder
+		FROM inserted i JOIN compra c ON i.compra_codigo = c.compra_codigo
+	) subq JOIN producto_variante p ON p.producto_variante_codigo = subq.producto_variante_codigo
+	WHERE roworder = 1
 END
 GO
 
@@ -351,6 +395,20 @@ BEGIN
 	ON PROVEEDOR_PROVINCIA = nombre_provincia
 	WHERE PROVEEDOR_LOCALIDAD IS NOT NULL
 
+	-- COMPRA
+
+	INSERT INTO proveedor (proveedor_razon_social, proveedor_cuit, proveedor_mail, proveedor_domicilio, proveedor_localidad)
+	SELECT DISTINCT PROVEEDOR_RAZON_SOCIAL, PROVEEDOR_CUIT, PROVEEDOR_MAIL, PROVEEDOR_DOMICILIO, localidad_codigo
+	FROM GD2C2022.gd_esquema.Maestra JOIN localidad
+	ON PROVEEDOR_LOCALIDAD = nombre_localidad
+	AND PROVEEDOR_CODIGO_POSTAL = codigo_postal
+	WHERE PROVEEDOR_CUIT IS NOT NULL
+
+	INSERT INTO compra (compra_codigo, proveedor_codigo, compra_fecha, compra_total)
+	SELECT DISTINCT COMPRA_NUMERO, PROVEEDOR_CUIT, COMPRA_FECHA, COMPRA_TOTAL
+	FROM GD2C2022.gd_esquema.Maestra m 
+	WHERE COMPRA_NUMERO IS NOT NULL
+	
 	-- VENTA
 
 	INSERT INTO cliente (cliente_nombre, cliente_apellido, cliente_dni, cliente_fecha_nac, cliente_direccion, cliente_localidad, cliente_telefono, cliente_mail)
@@ -396,20 +454,6 @@ BEGIN
 	FROM GD2C2022.gd_esquema.Maestra m
 	WHERE VENTA_CODIGO IS NOT NULL AND VENTA_CUPON_CODIGO IS NOT NULL
 
-	-- COMPRA
-
-	INSERT INTO proveedor (proveedor_razon_social, proveedor_cuit, proveedor_mail, proveedor_domicilio, proveedor_localidad)
-	SELECT DISTINCT PROVEEDOR_RAZON_SOCIAL, PROVEEDOR_CUIT, PROVEEDOR_MAIL, PROVEEDOR_DOMICILIO, localidad_codigo
-	FROM GD2C2022.gd_esquema.Maestra JOIN localidad
-	ON PROVEEDOR_LOCALIDAD = nombre_localidad
-	AND PROVEEDOR_CODIGO_POSTAL = codigo_postal
-	WHERE PROVEEDOR_CUIT IS NOT NULL
-
-	INSERT INTO compra (compra_codigo, proveedor_codigo, compra_fecha, compra_total)
-	SELECT DISTINCT COMPRA_NUMERO, PROVEEDOR_CUIT, COMPRA_FECHA, COMPRA_TOTAL
-	FROM GD2C2022.gd_esquema.Maestra m 
-	WHERE COMPRA_NUMERO IS NOT NULL
-
 	-- MEDIO DE PAGO
 
 	INSERT INTO tipo_medio_pago (tipo_mp, medio_pago_costo)
@@ -425,15 +469,15 @@ BEGIN
 	) subq
 	GROUP BY medio_pago
 
-	INSERT INTO medio_pago_venta (venta_codigo, tipo_medio_pago)
-	SELECT DISTINCT m.VENTA_CODIGO, tipo_mp_codigo
-	FROM GD2C2022.gd_esquema.Maestra m
-	JOIN tipo_medio_pago t ON t.tipo_mp = m.VENTA_MEDIO_PAGO
-
 	INSERT INTO medio_pago_compra (compra_codigo, tipo_medio_pago)
 	SELECT DISTINCT COMPRA_NUMERO, tipo_mp_codigo
 	FROM GD2C2022.gd_esquema.Maestra m
 	JOIN tipo_medio_pago t ON t.tipo_mp = m.COMPRA_MEDIO_PAGO
+
+	INSERT INTO medio_pago_venta (venta_codigo, tipo_medio_pago)
+	SELECT DISTINCT m.VENTA_CODIGO, tipo_mp_codigo
+	FROM GD2C2022.gd_esquema.Maestra m
+	JOIN tipo_medio_pago t ON t.tipo_mp = m.VENTA_MEDIO_PAGO
 
 	-- DESCUENTO
 
@@ -446,7 +490,7 @@ BEGIN
 	SELECT DISTINCT VENTA_CODIGO, VENTA_DESCUENTO_IMPORTE, tipo_descuento_codigo
 	FROM GD2C2022.gd_esquema.Maestra m JOIN tipo_descuento_venta d
 	ON m.VENTA_DESCUENTO_CONCEPTO = d.venta_descuento_concepto
-	WHERE VENTA_CODIGO IS NOT NULL
+	WHERE VENTA_DESCUENTO_IMPORTE IS NOT NULL
 
 	INSERT INTO descuento_compra (descuento_compra_codigo, compra_codigo, descuento_compra_valor)
 	SELECT DISTINCT DESCUENTO_COMPRA_CODIGO, COMPRA_NUMERO, DESCUENTO_COMPRA_VALOR
@@ -487,18 +531,13 @@ BEGIN
 	JOIN material ON maestra.PRODUCTO_MATERIAL = material.material
 	JOIN marca ON maestra.PRODUCTO_MARCA = marca.marca
 	JOIN categoria ON maestra.PRODUCTO_CATEGORIA = categoria.categoria
+	WHERE PRODUCTO_CODIGO IS NOT NULL
 
-	INSERT INTO producto_variante (producto_variante_codigo, producto_codigo, variante_codigo, stock_disponible)
-	SELECT PRODUCTO_VARIANTE_CODIGO, PRODUCTO_CODIGO, variante_codigo, SUM(COMPRA_PRODUCTO_CANTIDAD)
+	INSERT INTO producto_variante (producto_variante_codigo, producto_codigo, variante_codigo)
+	SELECT DISTINCT PRODUCTO_VARIANTE_CODIGO, PRODUCTO_CODIGO, variante_codigo
 	FROM GD2C2022.gd_esquema.Maestra
 	JOIN variante ON PRODUCTO_VARIANTE = variante_descripcion
-	GROUP BY PRODUCTO_VARIANTE_CODIGO, PRODUCTO_CODIGO, variante_codigo
-
-	INSERT INTO producto_vendido
-	SELECT VENTA_CODIGO, PRODUCTO_VARIANTE_CODIGO, SUM(VENTA_PRODUCTO_CANTIDAD), VENTA_PRODUCTO_PRECIO
-	FROM GD2C2022.gd_esquema.Maestra
-	WHERE PRODUCTO_VARIANTE_CODIGO IS NOT NULL AND VENTA_CODIGO IS NOT NULL
-	GROUP BY VENTA_CODIGO, PRODUCTO_VARIANTE_CODIGO, VENTA_PRODUCTO_PRECIO
+	WHERE PRODUCTO_VARIANTE_CODIGO IS NOT NULL
 
 	INSERT INTO producto_comprado (compra_codigo, producto_variante_codigo, compra_prod_cantidad, compra_prod_precio)
 	SELECT COMPRA_NUMERO, PRODUCTO_VARIANTE_CODIGO, SUM(COMPRA_PRODUCTO_CANTIDAD), COMPRA_PRODUCTO_PRECIO
@@ -506,45 +545,13 @@ BEGIN
 	WHERE COMPRA_NUMERO IS NOT NULL AND PRODUCTO_VARIANTE_CODIGO IS NOT NULL
 	GROUP BY COMPRA_NUMERO, PRODUCTO_VARIANTE_CODIGO, COMPRA_PRODUCTO_PRECIO
 
-	UPDATE producto_variante
-	SET precio_actual = compra_prod_precio
-	FROM producto_variante pv JOIN (
-		SELECT
-			p.producto_variante_codigo, compra_prod_precio,
-			ROW_NUMBER() OVER(PARTITION BY producto_variante_codigo ORDER BY compra_fecha DESC) roworder
-		FROM producto_comprado p JOIN compra c ON p.compra_codigo = c.compra_codigo
-	) subq ON pv.producto_variante_codigo = subq.producto_variante_codigo
-	WHERE roworder = 1
+	INSERT INTO producto_vendido
+	SELECT VENTA_CODIGO, PRODUCTO_VARIANTE_CODIGO, SUM(VENTA_PRODUCTO_CANTIDAD), VENTA_PRODUCTO_PRECIO
+	FROM GD2C2022.gd_esquema.Maestra
+	WHERE PRODUCTO_VARIANTE_CODIGO IS NOT NULL AND VENTA_CODIGO IS NOT NULL
+	GROUP BY VENTA_CODIGO, PRODUCTO_VARIANTE_CODIGO, VENTA_PRODUCTO_PRECIO
 END
 GO
 
 EXEC MIGRAR
 GO
-
-/**
-DROP TABLE producto_comprado
-DROP TABLE descuento_de_compra
-DROP TABLE compra
-DROP TABLE medio_pago_compra
-DROP TABLE proveedor
-DROP TABLE tipo_descuento_compra
-DROP TABLE producto_vendido
-DROP TABLE producto_variante
-DROP TABLE variante
-DROP TABLE tipo_variante
-DROP TABLE categoria
-DROP TABLE marca
-DROP TABLE material
-DROP TABLE producto
-DROP TABLE cupon_canjeado
-DROP TABLE cupon
-DROP TABLE venta
-DROP TABLE descuento_venta
-DROP TABLE tipo_descuento_venta
-DROP TABLE canal
-DROP TABLE envio
-DROP TABLE medio_pago_venta
-DROP TABLE cliente
-DROP TABLE localidad
-DROP TABLE provincia
-**/
