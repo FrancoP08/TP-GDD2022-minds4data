@@ -178,7 +178,8 @@ BEGIN
 		descuento_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
 		venta_codigo DECIMAL(19,0) REFERENCES venta,
 		tipo_descuento_codigo NUMERIC(10) REFERENCES tipo_descuento_venta,
-		venta_descuento_importe DECIMAL(18,2)
+		venta_descuento_importe DECIMAL(18,2),
+		porcentaje DECIMAL(10,2)
 	);
 
 	CREATE TABLE descuento_compra (
@@ -319,7 +320,7 @@ BEGIN
 	EXEC SET_IMPORTE 'venta', 'venta_codigo'
 	EXEC SET_IMPORTE 'envio', 'venta_codigo'
 	EXEC SET_IMPORTE 'medio_pago_venta', 'venta_codigo'
-	
+
 	DROP TABLE #importes
 END
 GO
@@ -476,24 +477,6 @@ BEGIN
 	FROM GD2C2022.gd_esquema.Maestra m
 	JOIN tipo_medio_pago t ON t.tipo_mp = m.VENTA_MEDIO_PAGO
 
-	-- DESCUENTO
-
-	INSERT INTO tipo_descuento_venta (venta_descuento_concepto)
-	SELECT DISTINCT VENTA_DESCUENTO_CONCEPTO
-	FROM GD2C2022.gd_esquema.Maestra
-	WHERE VENTA_DESCUENTO_CONCEPTO IS NOT NULL
-
-	INSERT INTO descuento_venta (venta_codigo, venta_descuento_importe, tipo_descuento_codigo)
-	SELECT DISTINCT VENTA_CODIGO, VENTA_DESCUENTO_IMPORTE, tipo_descuento_codigo
-	FROM GD2C2022.gd_esquema.Maestra m JOIN tipo_descuento_venta d
-	ON m.VENTA_DESCUENTO_CONCEPTO = d.venta_descuento_concepto
-	WHERE VENTA_DESCUENTO_IMPORTE IS NOT NULL
-
-	INSERT INTO descuento_compra (descuento_compra_codigo, compra_codigo, descuento_compra_valor)
-	SELECT DISTINCT DESCUENTO_COMPRA_CODIGO, COMPRA_NUMERO, DESCUENTO_COMPRA_VALOR
-	FROM GD2C2022.gd_esquema.Maestra
-	WHERE DESCUENTO_COMPRA_CODIGO IS NOT NULL
-
 	-- PRODUCTO
 
 	INSERT INTO tipo_variante (tipo_variante_descripcion)
@@ -547,6 +530,25 @@ BEGIN
 	FROM GD2C2022.gd_esquema.Maestra
 	WHERE PRODUCTO_VARIANTE_CODIGO IS NOT NULL AND VENTA_CODIGO IS NOT NULL
 	GROUP BY VENTA_CODIGO, PRODUCTO_VARIANTE_CODIGO, VENTA_PRODUCTO_PRECIO
+
+	-- DESCUENTO
+
+	INSERT INTO tipo_descuento_venta (venta_descuento_concepto)
+	SELECT DISTINCT VENTA_DESCUENTO_CONCEPTO
+	FROM GD2C2022.gd_esquema.Maestra
+	WHERE VENTA_DESCUENTO_CONCEPTO IS NOT NULL
+
+	INSERT INTO descuento_venta (venta_codigo, venta_descuento_importe, tipo_descuento_codigo, porcentaje)
+	SELECT DISTINCT m.VENTA_CODIGO, VENTA_DESCUENTO_IMPORTE, tipo_descuento_codigo, CONVERT(DECIMAL(10,2), VENTA_DESCUENTO_IMPORTE/importe)
+	FROM GD2C2022.gd_esquema.Maestra m
+	JOIN tipo_descuento_venta d ON m.VENTA_DESCUENTO_CONCEPTO = d.venta_descuento_concepto
+	JOIN venta v ON v.venta_codigo = m.VENTA_CODIGO
+	WHERE VENTA_DESCUENTO_IMPORTE IS NOT NULL
+
+	INSERT INTO descuento_compra (descuento_compra_codigo, compra_codigo, descuento_compra_valor)
+	SELECT DISTINCT DESCUENTO_COMPRA_CODIGO, COMPRA_NUMERO, DESCUENTO_COMPRA_VALOR
+	FROM GD2C2022.gd_esquema.Maestra
+	WHERE DESCUENTO_COMPRA_CODIGO IS NOT NULL
 END
 GO
 
