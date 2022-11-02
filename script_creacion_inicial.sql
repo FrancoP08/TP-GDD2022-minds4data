@@ -72,61 +72,61 @@ BEGIN
 	-- COMPRA
 
 	CREATE TABLE proveedor (
-		proveedor_razon_social NVARCHAR(50),
+		proveedor_razon_social NVARCHAR(50) NOT NULL,
 		proveedor_cuit NVARCHAR(50) PRIMARY KEY,
-		proveedor_mail NVARCHAR(50),
-		proveedor_domicilio NVARCHAR(50),
-		proveedor_localidad INTEGER REFERENCES localidad
+		proveedor_mail NVARCHAR(50) NOT NULL,
+		proveedor_domicilio NVARCHAR(50) NOT NULL,
+		proveedor_localidad INTEGER NOT NULL REFERENCES localidad
 	);
 
 	CREATE TABLE compra (
 		compra_codigo DECIMAL(19,0) PRIMARY KEY,
-		proveedor_codigo NVARCHAR(50) REFERENCES proveedor,
+		proveedor_codigo NVARCHAR(50) NOT NULL REFERENCES proveedor,
 		compra_fecha DATE NOT NULL,
 		importe DECIMAL(18,2),
-		compra_total DECIMAL(18,2)
+		compra_total DECIMAL(18,2) NOT NULL
 	);
 	
 	-- VENTA
 
 	CREATE TABLE cliente (
 		cliente_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
-		cliente_nombre NVARCHAR(255),
-		cliente_apellido NVARCHAR(255),
-		cliente_dni DECIMAL(18,0),
-		cliente_fecha_nac DATE,
-		cliente_direccion NVARCHAR(255),		
-		cliente_localidad INTEGER REFERENCES localidad,
-		cliente_telefono DECIMAL(18,2),
-		cliente_mail NVARCHAR(255),
+		cliente_nombre NVARCHAR(255) NOT NULL,
+		cliente_apellido NVARCHAR(255) NOT NULL,
+		cliente_dni DECIMAL(18,0) NOT NULL,
+		cliente_fecha_nac DATE NOT NULL,
+		cliente_direccion NVARCHAR(255) NOT NULL,		
+		cliente_localidad INTEGER NOT NULL REFERENCES localidad,
+		cliente_telefono DECIMAL(18,2) NOT NULL,
+		cliente_mail NVARCHAR(255) NOT NULL,
 	);
 
 	CREATE TABLE venta_canal (
 		venta_canal_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
-		venta_canal NVARCHAR(2255),
-		venta_canal_costo DECIMAL(18,2)
+		venta_canal NVARCHAR(2255) NOT NULL,
+		venta_canal_costo DECIMAL(18,2) NOT NULL
 	);
 
 	CREATE TABLE venta (
 		venta_codigo DECIMAL(19,0) PRIMARY KEY,
-		venta_fecha DATE,
-		cliente_codigo INTEGER REFERENCES cliente,
-		venta_total DECIMAL(18,2),
+		venta_fecha DATE NOT NULL,
+		cliente_codigo INTEGER NOT NULL REFERENCES cliente,
+		venta_total DECIMAL(18,2) NOT NULL,
 		importe DECIMAL(18,2),
-		venta_canal_codigo INTEGER REFERENCES venta_canal
+		venta_canal_codigo INTEGER NOT NULL REFERENCES venta_canal
 	);
 
 	CREATE TABLE medio_envio (
 		medio_envio_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
-		medio_envio NVARCHAR(255)
+		medio_envio NVARCHAR(255) NOT NULL
 	);
 
 	CREATE TABLE envio (
 		envio_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
-		venta_codigo DECIMAL(19,0) REFERENCES venta,
-		localidad_codigo INTEGER REFERENCES localidad,
+		venta_codigo DECIMAL(19,0) NOT NULL REFERENCES venta,
+		localidad_codigo INTEGER NOT NULL REFERENCES localidad,
 		precio_envio DECIMAL(18,2),
-		medio_envio INTEGER REFERENCES medio_envio,
+		medio_envio INTEGER NOT NULL REFERENCES medio_envio,
 		importe DECIMAL(18,2),
 	);
 
@@ -141,7 +141,7 @@ BEGIN
 	CREATE TABLE cupon_canjeado (
 		venta_cupon_codigo NVARCHAR(255) REFERENCES cupon,
 		venta_codigo DECIMAL(19,0) REFERENCES venta,
-		venta_cupon_importe DECIMAL(18,2),
+		venta_cupon_importe DECIMAL(18,2) NOT NULL,
 		PRIMARY KEY(venta_cupon_codigo, venta_codigo)
 	);
 
@@ -149,21 +149,21 @@ BEGIN
 
 	CREATE TABLE tipo_medio_pago (
 		tipo_mp_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
-		tipo_mp NVARCHAR(255)
+		tipo_mp NVARCHAR(255) NOT NULL
 	);
 
 	CREATE TABLE medio_pago_compra (
 		medio_pago_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
-		compra_codigo DECIMAL(19,0) REFERENCES compra,
-		tipo_medio_pago INTEGER REFERENCES tipo_medio_pago,
+		compra_codigo DECIMAL(19,0) NOT NULL REFERENCES compra,
+		tipo_medio_pago INTEGER NOT NULL REFERENCES tipo_medio_pago,
 		importe DECIMAL(18,2)
 	);
 
 	CREATE TABLE medio_pago_venta (
 		medio_pago_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
-		venta_codigo DECIMAL(19,0) REFERENCES venta,
-		tipo_medio_pago INTEGER REFERENCES tipo_medio_pago,
-		medio_pago_costo DECIMAL(18,2),
+		venta_codigo DECIMAL(19,0) NOT NULL REFERENCES venta,
+		tipo_medio_pago INTEGER NOT NULL REFERENCES tipo_medio_pago,
+		medio_pago_costo DECIMAL(18,2) NOT NULL,
 		importe DECIMAL(18,2)
 	);
 
@@ -176,16 +176,16 @@ BEGIN
 
 	CREATE TABLE descuento_venta (
 		descuento_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
-		venta_codigo DECIMAL(19,0) REFERENCES venta,
-		tipo_descuento_codigo NUMERIC(10) REFERENCES tipo_descuento_venta,
-		venta_descuento_importe DECIMAL(18,2),
+		venta_codigo DECIMAL(19,0) NOT NULL REFERENCES venta,
+		tipo_descuento_codigo NUMERIC(10) NOT NULL REFERENCES tipo_descuento_venta,
+		venta_descuento_importe DECIMAL(18,2) NOT NULL,
 		porcentaje DECIMAL(10,2)
 	);
 
 	CREATE TABLE descuento_compra (
 		descuento_compra_codigo DECIMAL(19,0) PRIMARY KEY,
-		compra_codigo DECIMAL(19,0) REFERENCES compra,
-		descuento_compra_valor DECIMAL(18,2),
+		compra_codigo DECIMAL(19,0) NOT NULL REFERENCES compra,
+		descuento_compra_valor DECIMAL(18,2) NOT NULL,
 		importe DECIMAL(18,2)
 	);
 
@@ -199,8 +199,8 @@ BEGIN
 	
 	CREATE TABLE variante (
 		variante_codigo INTEGER IDENTITY(1,1) PRIMARY KEY, 
-		tipo_variante_codigo INTEGER REFERENCES tipo_variante,
-		variante_descripcion NVARCHAR(255)
+		tipo_variante_codigo INTEGER NOT NULL REFERENCES tipo_variante,
+		variante_descripcion NVARCHAR(255) NOT NULL
 	);
 
 	CREATE TABLE categoria (
@@ -220,33 +220,33 @@ BEGIN
 
 	CREATE TABLE producto (
 		producto_codigo NVARCHAR(50) PRIMARY KEY,
-		material_codigo NUMERIC(10) REFERENCES material,
-		marca_codigo NUMERIC(10) REFERENCES marca,
-		categoria_codigo NUMERIC(10) REFERENCES categoria,
-		producto_descripcion NVARCHAR(50)
+		material_codigo NUMERIC(10) NOT NULL REFERENCES material,
+		marca_codigo NUMERIC(10) NOT NULL REFERENCES marca,
+		categoria_codigo NUMERIC(10) NOT NULL REFERENCES categoria,
+		producto_descripcion NVARCHAR(50) NOT NULL
 	);
 
 	CREATE TABLE producto_variante (
 		producto_variante_codigo NVARCHAR(50) PRIMARY KEY,
-		producto_codigo NVARCHAR(50) REFERENCES producto,
-		variante_codigo INTEGER REFERENCES variante,
-		precio_actual DECIMAL(18,2),
-		stock_disponible DECIMAL(18,0)
+		producto_codigo NVARCHAR(50) NOT NULL REFERENCES producto,
+		variante_codigo INTEGER NOT NULL REFERENCES variante,
+		precio_actual DECIMAL(18,2) NOT NULL,
+		stock_disponible DECIMAL(18,0) NOT NULL
 	);
 
 	CREATE TABLE producto_comprado (
 		compra_codigo DECIMAL(19,0) REFERENCES compra,
 		producto_variante_codigo NVARCHAR(50) REFERENCES producto_variante,
-		compra_prod_cantidad DECIMAL(18,0),
-		compra_prod_precio DECIMAL(18,2),
+		compra_prod_cantidad DECIMAL(18,0) NOT NULL,
+		compra_prod_precio DECIMAL(18,2) NOT NULL,
 		PRIMARY KEY (compra_codigo, producto_variante_codigo)
 	);
 
 	CREATE TABLE producto_vendido (
 		venta_codigo DECIMAL(19,0) REFERENCES venta,
 		producto_variante_codigo NVARCHAR(50) REFERENCES producto_variante,
-		venta_prod_cantidad DECIMAL(18,0),
-		venta_prod_precio DECIMAL(18,2), 
+		venta_prod_cantidad DECIMAL(18,0) NOT NULL,
+		venta_prod_precio DECIMAL(18,2) NOT NULL, 
 		PRIMARY KEY(venta_codigo, producto_variante_codigo)
 	);
 END
