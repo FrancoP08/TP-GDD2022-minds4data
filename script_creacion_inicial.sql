@@ -107,7 +107,9 @@ BEGIN
 		cliente_codigo INTEGER NOT NULL REFERENCES [DATA4MIND].[cliente],
 		venta_total DECIMAL(18,2) NOT NULL,
 		importe DECIMAL(18,2),
-		venta_canal_codigo INTEGER NOT NULL REFERENCES [DATA4MIND].[venta_canal]
+		venta_canal_codigo INTEGER NOT NULL REFERENCES [DATA4MIND].[venta_canal],
+		venta_canal_costo DECIMAL(18,2),
+		precio_envio DECIMAL(18,2)
 	);
 
 	CREATE TABLE [DATA4MIND].[medio_envio] (
@@ -429,8 +431,8 @@ BEGIN
 	FROM [gd_esquema].[Maestra]
 	WHERE VENTA_CANAL IS NOT NULL
 	
-	INSERT INTO [DATA4MIND].[venta] (venta_codigo, venta_fecha, cliente_codigo, venta_total, venta_canal_codigo)
-	SELECT DISTINCT VENTA_CODIGO, VENTA_FECHA, cliente_codigo, VENTA_TOTAL, venta_canal_codigo
+	INSERT INTO [DATA4MIND].[venta] (venta_codigo, venta_fecha, cliente_codigo, venta_total, venta_canal_codigo, venta_canal_costo, precio_envio)
+	SELECT DISTINCT m.VENTA_CODIGO, m.VENTA_FECHA, c.cliente_codigo, m.VENTA_TOTAL, v.venta_canal_codigo, v.venta_canal_costo, m.VENTA_ENVIO_PRECIO
 	FROM [gd_esquema].[Maestra] m
 	JOIN [DATA4MIND].[cliente] c ON m.CLIENTE_NOMBRE = c.cliente_nombre
 	AND m.CLIENTE_APELLIDO = c.cliente_apellido
