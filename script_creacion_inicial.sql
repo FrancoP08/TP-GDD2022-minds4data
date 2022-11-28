@@ -286,89 +286,8 @@ BEGIN
 	SET @qry =
 		'UPDATE [DATA4MIND].' + @tabla + ' SET importe = COALESCE(t.importe + i.importe, i.importe) ' +
 		'FROM [DATA4MIND].' + @tabla + ' t JOIN #importes i ' +
-		'ON t.' + @columna + ' = i.' + @columna
+		'ON t.' + @columna + ' = i.codigo'
 	EXEC(@qry)
-END
-GO
-
-CREATE TRIGGER UPDATE_IMPORTE_COMPRA ON [DATA4MIND].[producto_comprado]
-AFTER INSERT AS
-BEGIN
-	SELECT compra_codigo, SUM(compra_prod_cantidad * compra_prod_precio) importe
-	INTO #importes FROM inserted
-	GROUP BY compra_codigo
-
-	EXEC [DATA4MIND].[SET_IMPORTE] '[compra]', 'compra_codigo'
-	EXEC [DATA4MIND].[SET_IMPORTE] '[medio_pago_compra]', 'compra_codigo'
-	EXEC [DATA4MIND].[SET_IMPORTE] '[descuento_compra]', 'compra_codigo'
-	
-	DROP TABLE #importes
-END
-GO
-
-CREATE TRIGGER UPDATE_IMPORTE_VENTA ON [DATA4MIND].[producto_vendido]
-AFTER INSERT AS
-BEGIN
-	SELECT venta_codigo, SUM(venta_prod_cantidad * venta_prod_precio) importe
-	INTO #importes FROM inserted
-	GROUP BY venta_codigo
-
-	EXEC [DATA4MIND].[SET_IMPORTE] '[venta]', 'venta_codigo'
-	EXEC [DATA4MIND].[SET_IMPORTE] '[envio]', 'venta_codigo'
-	EXEC [DATA4MIND].[SET_IMPORTE] '[medio_pago_venta]', 'venta_codigo'
-
-	DROP TABLE #importes
-END
-GO
-
-CREATE TRIGGER UPDATE_PORCENTAJE ON [DATA4MIND].[venta]
-AFTER UPDATE AS
-BEGIN
-	UPDATE [DATA4MIND].[descuento_venta]
-	SET porcentaje = CONVERT(DECIMAL(10,2), venta_descuento_importe/importe)
-	FROM [DATA4MIND].[descuento_venta] d JOIN inserted i
-	ON d.venta_codigo = i.venta_codigo
-END
-GO
-
-CREATE TRIGGER SUMAR_STOCK ON [DATA4MIND].[producto_comprado]
-AFTER INSERT AS
-BEGIN
-	UPDATE [DATA4MIND].[producto_variante]
-	SET stock_disponible = COALESCE(stock_disponible + stock, stock)
-	FROM (
-		SELECT producto_variante_codigo, SUM(compra_prod_cantidad) stock
-		FROM inserted
-		GROUP BY producto_variante_codigo
-	) subq JOIN [DATA4MIND].[producto_variante] p ON p.producto_variante_codigo = subq.producto_variante_codigo
-END
-GO
-
-CREATE TRIGGER RESTAR_STOCK ON [DATA4MIND].[producto_vendido]
-AFTER INSERT AS
-BEGIN
-	UPDATE [DATA4MIND].[producto_variante]
-	SET stock_disponible = COALESCE(stock_disponible - stock, stock)
-	FROM (
-		SELECT producto_variante_codigo, SUM(venta_prod_cantidad) stock
-		FROM inserted
-		GROUP BY producto_variante_codigo
-	) subq JOIN [DATA4MIND].[producto_variante] p ON p.producto_variante_codigo = subq.producto_variante_codigo
-END
-GO
-
-CREATE TRIGGER UPDATE_PRECIO_ACTUAL ON [DATA4MIND].[producto_comprado]
-AFTER INSERT AS
-BEGIN
-	UPDATE [DATA4MIND].[producto_variante]
-	SET precio_actual = compra_prod_precio
-	FROM (
-		SELECT
-			producto_variante_codigo, compra_prod_precio,
-			ROW_NUMBER() OVER(PARTITION BY producto_variante_codigo ORDER BY compra_fecha DESC) roworder
-		FROM inserted i JOIN [DATA4MIND].[compra] c ON i.compra_codigo = c.compra_codigo
-	) subq JOIN [DATA4MIND].[producto_variante] p ON p.producto_variante_codigo = subq.producto_variante_codigo
-	WHERE roworder = 1
 END
 GO
 
@@ -501,6 +420,11 @@ BEGIN
 	FROM [gd_esquema].[Maestra]
 	WHERE DESCUENTO_COMPRA_CODIGO IS NOT NULL
 
+	UPDATE d
+	SET porcentaje = CONVERT(DECIMAL(10,2), venta_descuento_importe/importe)
+	FROM [DATA4MIND].[descuento_venta] d JOIN [DATA4MIND].[venta] v
+	ON d.venta_codigo = v.venta_codigo
+
 	-- PRODUCTO
 
 	INSERT INTO [DATA4MIND].[tipo_variante] (tipo_variante_descripcion)
@@ -554,6 +478,48 @@ BEGIN
 	FROM [gd_esquema].[Maestra]
 	WHERE PRODUCTO_VARIANTE_CODIGO IS NOT NULL AND VENTA_CODIGO IS NOT NULL
 	GROUP BY VENTA_CODIGO, PRODUCTO_VARIANTE_CODIGO, VENTA_PRODUCTO_PRECIO
+
+	-- UPDATES
+
+	UPDATE p
+	SET
+		stock_disponible = compras - ventas,
+		precio_actual = (
+			SELECT TOP 1 compra_prod_precio
+			FROM [DATA4MIND].[producto_comprado] c
+			WHERE c.producto_variante_codigo = p.producto_variante_codigo
+			ORDER BY compra_codigo DESC
+		)
+	FROM [DATA4MIND].[producto_variante] p
+	JOIN (
+		SELECT producto_variante_codigo, SUM(compra_prod_cantidad) compras
+		FROM [DATA4MIND].[producto_comprado]
+		GROUP BY producto_variante_codigo
+	) pc ON pc.producto_variante_codigo = p.producto_variante_codigo
+	JOIN (
+		SELECT producto_variante_codigo, SUM(venta_prod_cantidad) ventas
+		FROM [DATA4MIND].[producto_vendido]
+		GROUP BY producto_variante_codigo
+	) pv ON pv.producto_variante_codigo = p.producto_variante_codigo
+
+	SELECT compra_codigo codigo, SUM(compra_prod_cantidad * compra_prod_precio) importe
+	INTO #importes FROM [DATA4MIND].[producto_comprado]
+	GROUP BY compra_codigo
+
+	INSERT INTO #importes
+	SELECT venta_codigo codigo, SUM(venta_prod_cantidad * venta_prod_precio) importe
+	FROM [DATA4MIND].[producto_vendido]
+	GROUP BY venta_codigo
+	
+	EXEC [DATA4MIND].[SET_IMPORTE] '[compra]', 'compra_codigo'
+	EXEC [DATA4MIND].[SET_IMPORTE] '[medio_pago_compra]', 'compra_codigo'
+	EXEC [DATA4MIND].[SET_IMPORTE] '[descuento_compra]', 'compra_codigo'
+
+	EXEC [DATA4MIND].[SET_IMPORTE] '[venta]', 'venta_codigo'
+	EXEC [DATA4MIND].[SET_IMPORTE] '[envio]', 'venta_codigo'
+	EXEC [DATA4MIND].[SET_IMPORTE] '[medio_pago_venta]', 'venta_codigo'
+
+	DROP TABLE #importes
 END
 GO
 
