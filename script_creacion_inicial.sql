@@ -63,6 +63,24 @@ BEGIN
 		nombre_localidad NVARCHAR(255) NOT NULL
 	);
 
+	-- MEDIO DE PAGO
+
+	CREATE TABLE [DATA4MIND].[tipo_medio_pago] (
+		tipo_mp_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
+		tipo_mp NVARCHAR(255) NOT NULL
+	);
+
+	CREATE TABLE [DATA4MIND].[medio_pago_compra] (
+		medio_pago_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
+		tipo_medio_pago INTEGER NOT NULL REFERENCES [DATA4MIND].[tipo_medio_pago],
+	);
+
+	CREATE TABLE [DATA4MIND].[medio_pago_venta] (
+		medio_pago_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
+		tipo_medio_pago INTEGER NOT NULL REFERENCES [DATA4MIND].[tipo_medio_pago],
+		medio_pago_costo DECIMAL(18,2) NOT NULL,
+	);
+
 	-- COMPRA
 
 	CREATE TABLE [DATA4MIND].[proveedor] (
@@ -76,8 +94,9 @@ BEGIN
 	CREATE TABLE [DATA4MIND].[compra] (
 		compra_codigo DECIMAL(19,0) PRIMARY KEY,
 		proveedor_codigo NVARCHAR(50) NOT NULL REFERENCES [DATA4MIND].[proveedor],
+		medio_pago_codigo INTEGER NOT NULL REFERENCES [DATA4MIND].[medio_pago_compra],
+		descuentos_totales DECIMAL(18,2) NULL,
 		compra_fecha DATE NOT NULL,
-		importe DECIMAL(18,2),
 		compra_total DECIMAL(18,2) NOT NULL
 	);
 	
@@ -105,11 +124,13 @@ BEGIN
 		venta_codigo DECIMAL(19,0) PRIMARY KEY,
 		venta_fecha DATE NOT NULL,
 		cliente_codigo INTEGER NOT NULL REFERENCES [DATA4MIND].[cliente],
-		venta_total DECIMAL(18,2) NOT NULL,
-		importe DECIMAL(18,2),
 		venta_canal_codigo INTEGER NOT NULL REFERENCES [DATA4MIND].[venta_canal],
-		venta_canal_costo DECIMAL(18,2),
-		precio_envio DECIMAL(18,2)
+		medio_pago_codigo INTEGER NOT NULL REFERENCES [DATA4MIND].[medio_pago_venta],
+		venta_canal_costo DECIMAL(18,2) NOT NULL,
+		medio_pago_costo DECIMAL(18,2) NOT NULL, 
+		precio_envio DECIMAL(18,2),
+		venta_total DECIMAL(18,2) NOT NULL,
+		descuentos_totales DECIMAL(18,2) NULL
 	);
 
 	CREATE TABLE [DATA4MIND].[medio_envio] (
@@ -123,7 +144,6 @@ BEGIN
 		localidad_codigo INTEGER NOT NULL REFERENCES [DATA4MIND].[localidad],
 		precio_envio DECIMAL(18,2),
 		medio_envio INTEGER NOT NULL REFERENCES [DATA4MIND].[medio_envio],
-		importe DECIMAL(18,2),
 	);
 
 	CREATE TABLE [DATA4MIND].[cupon] (
@@ -139,28 +159,6 @@ BEGIN
 		venta_codigo DECIMAL(19,0) REFERENCES [DATA4MIND].[venta],
 		venta_cupon_importe DECIMAL(18,2) NOT NULL,
 		PRIMARY KEY(venta_cupon_codigo, venta_codigo)
-	);
-
-	-- MEDIO DE PAGO
-
-	CREATE TABLE [DATA4MIND].[tipo_medio_pago] (
-		tipo_mp_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
-		tipo_mp NVARCHAR(255) NOT NULL
-	);
-
-	CREATE TABLE [DATA4MIND].[medio_pago_compra] (
-		medio_pago_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
-		compra_codigo DECIMAL(19,0) NOT NULL REFERENCES [DATA4MIND].[compra],
-		tipo_medio_pago INTEGER NOT NULL REFERENCES [DATA4MIND].[tipo_medio_pago],
-		importe DECIMAL(18,2)
-	);
-
-	CREATE TABLE [DATA4MIND].[medio_pago_venta] (
-		medio_pago_codigo INTEGER IDENTITY(1,1) PRIMARY KEY,
-		venta_codigo DECIMAL(19,0) NOT NULL REFERENCES [DATA4MIND].[venta],
-		tipo_medio_pago INTEGER NOT NULL REFERENCES [DATA4MIND].[tipo_medio_pago],
-		medio_pago_costo DECIMAL(18,2) NOT NULL,
-		importe DECIMAL(18,2)
 	);
 
 	-- DESCUENTO
@@ -182,7 +180,6 @@ BEGIN
 		descuento_compra_codigo DECIMAL(19,0) PRIMARY KEY,
 		compra_codigo DECIMAL(19,0) NOT NULL REFERENCES [DATA4MIND].[compra],
 		descuento_compra_valor DECIMAL(18,2) NOT NULL,
-		importe DECIMAL(18,2)
 	);
 
 	
@@ -331,9 +328,10 @@ BEGIN
 	AND PROVEEDOR_CODIGO_POSTAL = codigo_postal
 	WHERE PROVEEDOR_CUIT IS NOT NULL
 
-	INSERT INTO [DATA4MIND].[compra] (compra_codigo, proveedor_codigo, compra_fecha, compra_total)
-	SELECT DISTINCT COMPRA_NUMERO, PROVEEDOR_CUIT, COMPRA_FECHA, COMPRA_TOTAL
+	INSERT INTO [DATA4MIND].[compra] (compra_codigo, proveedor_codigo, medio_pago_codigo, descuentos_totales ,compra_fecha, compra_total)
+	SELECT DISTINCT COMPRA_NUMERO, PROVEEDOR_CUIT, p.medio_pago_codigo, NULL, COMPRA_FECHA, COMPRA_TOTAL
 	FROM [gd_esquema].[Maestra]
+	JOIN [DATA4MIND].[medio_pago_compra] p ON (p.compra_codigo=COMPRA_NUMERO)
 	WHERE COMPRA_NUMERO IS NOT NULL
 	
 	-- VENTA
@@ -350,14 +348,14 @@ BEGIN
 	FROM [gd_esquema].[Maestra]
 	WHERE VENTA_CANAL IS NOT NULL
 	
-	INSERT INTO [DATA4MIND].[venta] (venta_codigo, venta_fecha, cliente_codigo, venta_total, venta_canal_codigo, venta_canal_costo, precio_envio)
-	SELECT DISTINCT m.VENTA_CODIGO, m.VENTA_FECHA, c.cliente_codigo, m.VENTA_TOTAL, v.venta_canal_codigo, v.venta_canal_costo, m.VENTA_ENVIO_PRECIO
+	INSERT INTO [DATA4MIND].[venta] (venta_codigo, venta_fecha, cliente_codigo, venta_total, venta_canal_codigo, venta_canal_costo, medio_pago_codigo, medio_pago_costo, precio_envio, descuentos_totales)
+	SELECT DISTINCT m.VENTA_CODIGO, m.VENTA_FECHA, c.cliente_codigo, m.VENTA_TOTAL, v.venta_canal_codigo, v.venta_canal_costo, p.medio_pago_codigo, p.medio_pago_costo, m.VENTA_ENVIO_PRECIO, NULL
 	FROM [gd_esquema].[Maestra] m
-	JOIN [DATA4MIND].[cliente] c ON m.CLIENTE_NOMBRE = c.cliente_nombre
-	AND m.CLIENTE_APELLIDO = c.cliente_apellido
+	JOIN [DATA4MIND].[cliente] c ON m.CLIENTE_NOMBRE=C.cliente_nombre
+	AND m.CLIENTE_APELLIDO=c.cliente_apellido
 	AND m.CLIENTE_DNI = c.cliente_dni
-	JOIN [DATA4MIND].[venta_canal] v ON m.VENTA_CANAL = v.venta_canal
-	WHERE VENTA_CODIGO IS NOT NULL
+	JOIN [DATA4MIND].[venta_canal] v ON (m.VENTA_CANAL = v.venta_canal)
+	JOIN [DATA4MIND].[medio_pago_venta] p ON (m.VENTA_CODIGO=P.venta_codigo)
 
 	INSERT INTO [DATA4MIND].[medio_envio] (medio_envio)
 	SELECT DISTINCT VENTA_MEDIO_ENVIO
@@ -392,13 +390,13 @@ BEGIN
 	FROM [gd_esquema].[Maestra]
 	WHERE COMPRA_MEDIO_PAGO IS NOT NULL
 
-	INSERT INTO [DATA4MIND].[medio_pago_compra] (compra_codigo, tipo_medio_pago)
-	SELECT DISTINCT COMPRA_NUMERO, tipo_mp_codigo
+	INSERT INTO [DATA4MIND].[medio_pago_compra] (tipo_medio_pago)
+	SELECT DISTINCT tipo_mp_codigo
 	FROM [gd_esquema].[Maestra] m
 	JOIN [DATA4MIND].[tipo_medio_pago] t ON t.tipo_mp = m.COMPRA_MEDIO_PAGO
 
-	INSERT INTO [DATA4MIND].[medio_pago_venta] (venta_codigo, tipo_medio_pago, medio_pago_costo)
-	SELECT DISTINCT m.VENTA_CODIGO, tipo_mp_codigo, VENTA_MEDIO_PAGO_COSTO
+	INSERT INTO [DATA4MIND].[medio_pago_venta] (tipo_medio_pago, medio_pago_costo)
+	SELECT DISTINCT tipo_mp_codigo, VENTA_MEDIO_PAGO_COSTO
 	FROM [gd_esquema].[Maestra] m
 	JOIN [DATA4MIND].[tipo_medio_pago] t ON t.tipo_mp = m.VENTA_MEDIO_PAGO
 
@@ -409,7 +407,7 @@ BEGIN
 	FROM [gd_esquema].[Maestra]
 	WHERE VENTA_DESCUENTO_CONCEPTO IS NOT NULL
 
-	INSERT INTO [DATA4MIND].[descuento_venta] (venta_codigo, venta_descuento_importe, tipo_descuento_codigo)
+	INSERT INTO [DATA4MIND].[descuento_venta] (venta_codigo, venta_descuento_importe, porcentaje, tipo_descuento_codigo)
 	SELECT DISTINCT m.VENTA_CODIGO, VENTA_DESCUENTO_IMPORTE, tipo_descuento_codigo
 	FROM [gd_esquema].[Maestra] m
 	JOIN [DATA4MIND].[tipo_descuento_venta] d ON m.VENTA_DESCUENTO_CONCEPTO = d.venta_descuento_concepto
@@ -525,3 +523,6 @@ GO
 
 EXEC [DATA4MIND].[MIGRAR]
 GO
+
+
+--- FALTA ACTUALIZAR LOS DESCUENTOS TOTALES ----
