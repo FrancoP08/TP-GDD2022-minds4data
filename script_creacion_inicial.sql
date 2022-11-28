@@ -355,7 +355,7 @@ BEGIN
 	AND m.CLIENTE_APELLIDO=c.cliente_apellido
 	AND m.CLIENTE_DNI = c.cliente_dni
 	JOIN [DATA4MIND].[venta_canal] v ON (m.VENTA_CANAL = v.venta_canal)
-	JOIN [DATA4MIND].[medio_pago_venta] p ON (m.VENTA_CODIGO=P.venta_codigo)
+	JOIN [DATA4MIND].[medio_pago_venta] p ON (m.VENTA_CODIGO=p.venta_codigo)
 
 	INSERT INTO [DATA4MIND].[medio_envio] (medio_envio)
 	SELECT DISTINCT VENTA_MEDIO_ENVIO
@@ -479,7 +479,7 @@ BEGIN
 
 	-- UPDATES
 
-	UPDATE p
+	UPDATE producto_variante
 	SET
 		stock_disponible = compras - ventas,
 		precio_actual = (
@@ -524,5 +524,47 @@ GO
 EXEC [DATA4MIND].[MIGRAR]
 GO
 
+IF NOT EXISTS(SELECT name FROM sys.procedures WHERE name='ACTUALIZAR_DESCUENTOS')
+	EXEC('CREATE PROCEDURE [DATA4MIND].[ACTUALIZAR_DESCUENTOS] AS BEGIN SET NOCOUNT ON; END');
+GO
 
---- FALTA ACTUALIZAR LOS DESCUENTOS TOTALES ----
+ALTER PROCEDURE [DATA4MIND].[CREATE_INDEXES]
+AS
+BEGIN 
+  DECLARE @venta_codigo DECIMAL(19,0), @compra_codigo INTEGER
+
+  DECLARE ventaCursor CURSOR FOR 
+  (SELECT v.venta_codigo FROM venta v)
+
+  DECLARE compraCursor CURSOR FOR 
+  (SELECT c.compra_codigo FROM compra c)
+
+  OPEN ventaCursor
+
+  FETCH NEXT FROM ventaCursor INTO @venta_codigo
+  WHILE (@@FETCH_STATUS = 0)
+    UPDATE venta
+	SET descuentos_totales = venta_canal_costo + medio_pago_costo + (SELECT venta_descuento_importe FROM descuento_venta d WHERE d.venta_codigo=venta_codigo)
+	WHERE venta_codigo=@venta_codigo
+
+	FETCH NEXT FROM ventaCursor INTO @venta_codigo
+  END;
+
+  CLOSE ventaCursor; 
+  DEALLOCATE ventaCursor;
+
+  OPEN compraCursor 
+
+  FETCH FROM compraCursor INTO @compra_codigo
+  WHILE (@@FETCH_STATUS = 0)
+    UPDATE compra
+	SET descuentos_totales = (SELECT d.descuento_compra_valor FROM descuento_compra d WHERE d.compra_codigo=compra_codigo)
+	WHERE compra_codigo=@compra_codigo
+
+	FETCH NEXT FROM ventaCursor INTO @venta_codigo
+  END;
+
+  CLOSE compraCursor;
+  DEALLOCATE compraCursor;
+
+END;
