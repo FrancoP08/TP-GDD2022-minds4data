@@ -33,7 +33,7 @@ BEGIN
 	CLOSE cursorTablas
 	DEALLOCATE cursorTablas
 	
-	EXEC sp_MSforeachtable 'DROP TABLE ?', @whereand='AND schema_name(schema_id) = ''DATA4MIND'' AND o.NAME NOT LIKE ''BI_%'''
+	EXEC sp_MSforeachtable 'DROP TABLE ?', @whereand='AND schema_name(schema_id) = ''DATA4MIND'' AND o.name NOT LIKE ''BI_%'''
 END
 GO
 
