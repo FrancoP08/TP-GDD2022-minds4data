@@ -240,15 +240,15 @@ EXEC [DATA4MIND].[MIGRAR_BI]
 GO
 
 IF EXISTS(SELECT 1 FROM sys.views WHERE name='GANANCIAS_CANAL' AND type='v')
-	DROP VIEW GANANCIAS_CANAL
+	DROP VIEW [DATA4MIND].[GANANCIAS_CANAL]
 GO
 
-CREATE VIEW GANANCIAS_CANAL AS
-SELECT idCanal, v.fecha, ventas - compras ganancias
+CREATE VIEW [DATA4MIND].[GANANCIAS_CANAL] AS
+SELECT v.fecha, ventas - compras - costoMedioPago ganancias
 FROM (
-	SELECT idCanal, fecha, SUM(cantidad * precio) ventas
+	SELECT fecha, SUM(cantidad * precio) ventas, SUM(costoMedioPago) costoMedioPago
 	FROM [DATA4MIND].[BI_hechos_venta]
-	GROUP BY idCanal, fecha
+	GROUP BY fecha
 ) v JOIN (
 	SELECT fecha, SUM(cantidad * precio) compras
 	FROM [DATA4MIND].[BI_hechos_compra]
@@ -256,4 +256,4 @@ FROM (
 ) c ON v.fecha = c.fecha
 GO
 
-select * from GANANCIAS_CANAL order by 1,2
+select * from [DATA4MIND].[GANANCIAS_CANAL] order by 1,2
