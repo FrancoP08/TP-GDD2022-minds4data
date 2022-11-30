@@ -131,7 +131,6 @@ BEGIN
 		idProducto NVARCHAR(50) REFERENCES [DATA4MIND].[BI_producto],
 		idCategoria INTEGER REFERENCES [DATA4MIND].[BI_categoria],
 		idTipoDescuento NUMERIC(10,0) REFERENCES [DATA4MIND].[BI_tipo_descuento],
-		costoEnvio DECIMAL(18,2),
 		fecha VARCHAR(7) REFERENCES [DATA4MIND].[BI_tiempo],
 		cantidad INT,
 		precio DECIMAL(18,2)
@@ -209,7 +208,7 @@ BEGIN
 	SELECT * FROM [DATA4MIND].[tipo_descuento]
 
 	INSERT INTO [DATA4MIND].[BI_venta]
-	SELECT venta_codigo, costo_envio, canal_costo, medio_pago_costo
+	SELECT venta_codigo, medio_pago_costo, costo_envio, canal_costo
 	FROM [DATA4MIND].[venta]
 
 	INSERT INTO [DATA4MIND].[BI_descuento_venta] (idVenta, importe)
@@ -220,9 +219,9 @@ BEGIN
 	SELECT venta_codigo, importe FROM [DATA4MIND].[cupon_canjeado]
 
 	INSERT INTO [DATA4MIND].[BI_hechos_venta] (idVenta, idProvincia, idTipoEnvio, idCanal, idMedioPago, 
-		idRangoEtario, idProducto, idCategoria, idTipoDescuento, fecha, costoEnvio, cantidad, precio)
+		idRangoEtario, idProducto, idCategoria, idTipoDescuento, fecha, cantidad, precio)
 	SELECT v.venta_codigo, provincia_codigo, medio_envio_codigo, canal_codigo, medio_pago_codigo, idRangoEtario, 
-		p.producto_codigo, categoria_codigo, tipo_descuento_codigo, fecha, e.costo,  cantidad, precio
+		p.producto_codigo, categoria_codigo, tipo_descuento_codigo, fecha, cantidad, precio
 	FROM [DATA4MIND].[venta] v
 	JOIN (
 		SELECT cliente_codigo, provincia_codigo, DATEDIFF(YEAR, fecha_de_nacimiento, GETDATE()) edad
@@ -261,48 +260,65 @@ GO
 EXEC [DATA4MIND].[MIGRAR_BI]
 GO
 
+--Las ganancias mensuales de cada canal de venta.
+--Se entiende por ganancias al total de las ventas, menos el total de las
+--compras, menos los costos de transacción totales aplicados asociados los
+--medios de pagos utilizados en las mismas.
+
 IF EXISTS(SELECT 1 FROM sys.views WHERE name='GANANCIAS_CANAL' AND type='v')
 	DROP VIEW [DATA4MIND].[GANANCIAS_CANAL]
 GO
 
 CREATE VIEW [DATA4MIND].[GANANCIAS_CANAL] AS
-
-SELECT detalle, v.fecha, ventas - compras ganancias
+SELECT detalle, v.fecha, ventas - SUM(c.cantidad * c.precio) ganancias
 FROM (
-	SELECT idCanal, fecha, SUM(cantidad * precio) ventas
-	FROM [DATA4MIND].[BI_hechos_venta]
+	SELECT idCanal, fecha, SUM(ingresos) ventas
+	FROM (
+		SELECT idCanal, fecha, SUM(cantidad * precio) - SUM(costoMedioPago) ingresos
+		FROM [DATA4MIND].[BI_hechos_venta] hv
+		JOIN [DATA4MIND].[BI_venta] v ON hv.idVenta = v.idVenta
+		GROUP BY idCanal, fecha, v.idVenta
+	) vv
 	GROUP BY idCanal, fecha
-) v JOIN (
-	SELECT fecha, SUM(cantidad * precio) compras
-	FROM [DATA4MIND].[BI_hechos_compra]
-	GROUP BY fecha
-) c ON v.fecha = c.fecha
+) v
+JOIN [DATA4MIND].[BI_hechos_compra] c ON v.fecha = c.fecha
 JOIN [DATA4MIND].[BI_canal] cc ON cc.idCanal = v.idCanal
+GROUP BY detalle, v.fecha, ventas
 GO
+
+--Los 5 productos con mayor rentabilidad anual, con sus respectivos %
+--Se entiende por rentabilidad a los ingresos generados por el producto
+--(ventas) durante el periodo menos la inversión realizada en el producto
+--(compras) durante el periodo, todo esto sobre dichos ingresos.
+--Valor expresado en porcentaje.
+--Para simplificar, no es necesario tener en cuenta los descuentos aplicados.
 
 IF EXISTS(SELECT 1 FROM sys.views WHERE name='RENTABILIDAD' AND type='v')
 	DROP VIEW [DATA4MIND].[RENTABILIDAD]
 GO
 
 CREATE VIEW [DATA4MIND].[RENTABILIDAD] AS
-SELECT TOP 5 descripcion, v.fecha periodo, (ventas - compras) / ventas * 100 rentabilidad
+SELECT TOP 5 descripcion, v.anio periodo, (ventas - compras) / ventas * 100 rentabilidad
 FROM (
-	SELECT idProducto, fecha, SUM(cantidad * precio) ventas
-	FROM [DATA4MIND].[BI_hechos_venta]
-	GROUP BY idProducto, fecha
+	SELECT idProducto, anio, SUM(cantidad * precio) ventas
+	FROM [DATA4MIND].[BI_hechos_venta] hv
+	JOIN [DATA4MIND].[BI_tiempo] t ON hv.fecha = t.fecha
+	GROUP BY idProducto, anio
 ) v JOIN (
-	SELECT idProducto, fecha, SUM(cantidad * precio) compras
-	FROM [DATA4MIND].[BI_hechos_compra]
-	GROUP BY idProducto, fecha
-) c ON v.idProducto = c.idProducto AND v.fecha = c.fecha
+	SELECT idProducto, anio, SUM(cantidad * precio) compras
+	FROM [DATA4MIND].[BI_hechos_compra] hc
+	JOIN [DATA4MIND].[BI_tiempo] t ON t.fecha = hc.fecha
+	GROUP BY idProducto, anio
+) c ON v.idProducto = c.idProducto AND v.anio = c.anio
 JOIN [DATA4MIND].[BI_producto] p ON p.idProducto = v.idProducto
-ORDER BY 3 DESC
 GO
+
+--Las 5 categorías de productos más vendidos por rango etario de clientes
+--por mes.
 
 IF EXISTS(SELECT 1 FROM sys.views WHERE name='MAS_VENDIDOS' AND type='v')
 	DROP VIEW [DATA4MIND].[MAS_VENDIDOS]
 GO
-
 
 CREATE VIEW [DATA4MIND].[MAS_VENDIDOS] AS
 SELECT rangoEtario, fecha, categoria, SUM(cantidad) ventas
@@ -319,35 +335,80 @@ WHERE v.idCategoria IN (
 GROUP BY rangoEtario, fecha, categoria
 GO
 
+--Total de Ingresos por cada medio de pago por mes, descontando los costos
+--por medio de pago (en caso que aplique) y descuentos por medio de pago
+--(en caso que aplique)
+
+IF EXISTS(SELECT 1 FROM sys.views WHERE name='INGRESOS_MEDIO_PAGO' AND type='v')
+	DROP VIEW [DATA4MIND].[INGRESOS_MEDIO_PAGO]
+GO
+
+CREATE VIEW [DATA4MIND].[INGRESOS_MEDIO_PAGO] AS
+SELECT tipoMedioPago, fecha, SUM(ingresos) 'Total ingresos'
+FROM (
+	SELECT idMedioPago, fecha, SUM(cantidad * precio) - SUM(costoMedioPago) - SUM(importe) ingresos
+	FROM [DATA4MIND].[BI_hechos_venta] hv
+	JOIN [DATA4MIND].[BI_venta] v ON hv.idVenta = v.idVenta
+	JOIN [DATA4MIND].[BI_descuento_venta] d ON d.idVenta = v.idVenta
+	GROUP BY idMedioPago, fecha
+) vv
+JOIN [DATA4MIND].[BI_medio_pago] m ON m.idMedioPago = vv.idMedioPago
+GROUP BY tipoMedioPago, fecha
+GO
+
+--Porcentaje de envíos realizados a cada Provincia por mes. El porcentaje
+--debe representar la cantidad de envíos realizados a cada provincia sobre
+--total de envío mensuales.
+
 IF EXISTS(SELECT 1 FROM sys.views WHERE name='PORCENTAJE_ENVIOS' AND type='v')
 	DROP VIEW [DATA4MIND].[PORCENTAJE_ENVIOS]
 GO
 
 CREATE VIEW [DATA4MIND].[PORCENTAJE_ENVIOS] AS
-(SELECT t.fecha Fecha, p.nombreProvincia Provincia, ROUND(100*(SELECT COUNT(v.costoEnvio)/SUM(v.costoEnvio) FROM [DATA4MIND].[BI_hechos_venta] v WHERE v.idProvincia=p.idProvincia AND v.costoEnvio IS NOT NULL), 3) Porcentaje 
+SELECT t.fecha Fecha, p.nombreProvincia Provincia, ROUND(100*(
+	SELECT COUNT(vv.costoEnvio)/SUM(vv.costoEnvio)
+	FROM [DATA4MIND].[BI_hechos_venta] v
+	JOIN [DATA4MIND].[BI_venta] vv ON v.idVenta = vv.idVenta
+	WHERE v.idProvincia=p.idProvincia AND vv.costoEnvio IS NOT NULL
+), 3) Porcentaje 
 FROM [DATA4MIND].[BI_hechos_venta] hv 
 JOIN [DATA4MIND].[BI_provincia] p ON (hv.idProvincia=p.idProvincia)
 JOIN [DATA4MIND].[BI_tiempo] t ON (hv.fecha=t.fecha)
-GROUP BY p.idProvincia, t.fecha, p.nombreProvincia)
+GROUP BY p.idProvincia, t.fecha, p.nombreProvincia
 GO
+
+--Valor promedio de envío por Provincia por Medio De Envío anual.
 
 IF EXISTS(SELECT 1 FROM sys.views WHERE name='PROMEDIO_ENVIOS' AND type='v')
 	DROP VIEW [DATA4MIND].[PROMEDIO_ENVIOS]
 GO
 
 CREATE VIEW [DATA4MIND].[PROMEDIO_ENVIOS] AS
-(SELECT prom.fecha Mes, p.nombreProvincia Provincia, me.medioEnvio Medio_de_Envio, prom.Suma_Costos_Envios Promedio FROM 
-(SELECT v.fecha, v.idProvincia Nro_Provincia, AVG(v.costoEnvio) Suma_Costos_Envios FROM [DATA4MIND].[BI_hechos_venta] v GROUP BY v.idProvincia, v.fecha) prom 
+SELECT prom.fecha Mes, p.nombreProvincia Provincia, me.medioEnvio Medio_de_Envio, prom.Suma_Costos_Envios Promedio 
+FROM (
+	SELECT v.fecha, v.idProvincia Nro_Provincia, AVG(vv.costoEnvio) Suma_Costos_Envios 
+	FROM [DATA4MIND].[BI_hechos_venta] v
+	JOIN [DATA4MIND].[BI_venta] vv ON v.idVenta = vv.idVenta
+	GROUP BY v.idProvincia, v.fecha
+) prom 
 JOIN [DATA4MIND].[BI_provincia] p ON (prom.Nro_Provincia=p.idProvincia)
 JOIN [DATA4MIND].[BI_hechos_venta] hv ON (prom.Nro_Provincia=hv.idProvincia)
-JOIN [DATA4MIND].[BI_medio_envio] me ON (hv.idTipoEnvio=me.idTipoEnvio))
+JOIN [DATA4MIND].[BI_medio_envio] me ON (hv.idTipoEnvio=me.idTipoEnvio)
+GO
 
+--Los 3 productos con mayor cantidad de reposición por mes.
 
+IF EXISTS(SELECT 1 FROM sys.views WHERE name='MAYOR_REPOSICION' AND type='v')
+	DROP VIEW [DATA4MIND].[MAYOR_REPOSICION]
+GO
 
-SELECT COUNT(v.costoEnvio) Suma_Costos_Envios FROM [DATA4MIND].[BI_hechos_venta] v GROUP BY v.idProvincia
-SELECT SUM(v.costoEnvio) Suma_Costos_Envios FROM [DATA4MIND].[BI_hechos_venta] v GROUP BY v.idProvincia
-SELECT COUNT(costoEnvio) FROM [DATA4MIND].[BI_hechos_venta]
-
--- select * from [DATA4MIND].[GANANCIAS_CANAL] order by 1,2
---select * from [DATA4MIND].[PORCENTAJE_ENVIOS] order by 1, 2
---select * from [DATA4MIND].[PROMEDIO_ENVIOS] order by 1, 2
+CREATE VIEW MAYOR_REPOSICION AS
+SELECT TOP 3 c1.fecha, c1.idProducto, 
+(
+	SELECT SUM(c2.cantidad)
+	FROM [DATA4MIND].[BI_hechos_compra] c2
+	WHERE c1.idProducto = c2.idProducto AND c1.fecha = c2.fecha
+) Cantidad_Total 
+FROM [DATA4MIND].[BI_hechos_compra] c1 
+GROUP BY c1.fecha, c1.idProducto
+GO
