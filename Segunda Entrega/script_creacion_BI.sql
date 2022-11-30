@@ -86,7 +86,7 @@ BEGIN
 
 	CREATE TABLE [DATA4MIND].[BI_canal](
 		idCanal INTEGER PRIMARY KEY, 
-		detalle NVARCHAR(2255),
+		canal NVARCHAR(2255),
 		costo DECIMAL(18,2)
 	)
 
@@ -117,7 +117,8 @@ BEGIN
 	CREATE TABLE [DATA4MIND].[BI_cupon] (
 		idCupon INT IDENTITY PRIMARY KEY,
 		idVenta DECIMAL(19,0),
-		importe DECIMAL(18,2)
+		importe DECIMAL(18,2),
+		tipoCupon NVARCHAR(50)
 	)
 
 	CREATE TABLE [DATA4MIND].[BI_hechos_venta](
@@ -215,8 +216,10 @@ BEGIN
 	SELECT venta_codigo, importe
 	FROM [DATA4MIND].[descuento_venta]
 
-	INSERT INTO [DATA4MIND].[BI_cupon] (idVenta, importe)
-	SELECT venta_codigo, importe FROM [DATA4MIND].[cupon_canjeado]
+	INSERT INTO [DATA4MIND].[BI_cupon] (idVenta, importe, tipoCupon)
+	SELECT venta_codigo, importe, tipo
+	FROM [DATA4MIND].[cupon_canjeado] cc
+	JOIN [DATA4MIND].[cupon] c ON cc.cupon_codigo = c.cupon_codigo
 
 	INSERT INTO [DATA4MIND].[BI_hechos_venta] (idVenta, idProvincia, idTipoEnvio, idCanal, idMedioPago, 
 		idRangoEtario, idProducto, idCategoria, idTipoDescuento, fecha, cantidad, precio)
@@ -270,7 +273,7 @@ IF EXISTS(SELECT 1 FROM sys.views WHERE name='GANANCIAS_CANAL' AND type='v')
 GO
 
 CREATE VIEW [DATA4MIND].[GANANCIAS_CANAL] AS
-SELECT detalle, v.fecha, ventas - SUM(c.cantidad * c.precio) ganancias
+SELECT canal, v.fecha, ventas - SUM(c.cantidad * c.precio) ganancias
 FROM (
 	SELECT idCanal, fecha, SUM(ingresos) ventas
 	FROM (
@@ -283,7 +286,7 @@ FROM (
 ) v
 JOIN [DATA4MIND].[BI_hechos_compra] c ON v.fecha = c.fecha
 JOIN [DATA4MIND].[BI_canal] cc ON cc.idCanal = v.idCanal
-GROUP BY detalle, v.fecha, ventas
+GROUP BY canal, v.fecha, ventas
 GO
 
 --Los 5 productos con mayor rentabilidad anual, con sus respectivos %
@@ -356,6 +359,25 @@ JOIN [DATA4MIND].[BI_medio_pago] m ON m.idMedioPago = vv.idMedioPago
 GROUP BY tipoMedioPago, fecha
 GO
 
+--Importe total en descuentos aplicados según su tipo de descuento, por
+--canal de venta, por mes. Se entiende por tipo de descuento como los
+--correspondientes a envío, medio de pago, cupones, etc)
+
+IF EXISTS(SELECT 1 FROM sys.views WHERE name='IMPORTE_DESCUENTOS' AND type='v')
+	DROP VIEW [DATA4MIND].[IMPORTE_DESCUENTOS]
+GO
+
+CREATE VIEW [DATA4MIND].[IMPORTE_DESCUENTOS] AS
+SELECT tipoDescuento, tipoCupon, canal, fecha, SUM(cc.importe) + SUM(d.importe) importe
+FROM [DATA4MIND].[BI_hechos_venta] h
+JOIN [DATA4MIND].[BI_canal] c ON h.idCanal = c.idCanal
+JOIN [DATA4MIND].[BI_tipo_descuento] t ON t.idTipoDescuento = h.idTipoDescuento
+JOIN [DATA4MIND].[BI_venta] v ON h.idVenta = v.idVenta
+JOIN [DATA4MIND].[BI_descuento_venta] d ON v.idVenta = d.idVenta
+JOIN [DATA4MIND].[BI_cupon] cc ON cc.idVenta = v.idVenta
+GROUP BY tipoDescuento, tipoCupon, canal, fecha
+GO
+
 --Porcentaje de envíos realizados a cada Provincia por mes. El porcentaje
 --debe representar la cantidad de envíos realizados a cada provincia sobre
 --total de envío mensuales.
@@ -396,19 +418,35 @@ JOIN [DATA4MIND].[BI_hechos_venta] hv ON (prom.Nro_Provincia=hv.idProvincia)
 JOIN [DATA4MIND].[BI_medio_envio] me ON (hv.idTipoEnvio=me.idTipoEnvio)
 GO
 
+--Aumento promedio de precios de cada proveedor anual. Para calcular este
+--indicador se debe tomar como referencia el máximo precio por año menos
+--el mínimo todo esto divido el mínimo precio del año. Teniendo en cuenta
+--que los precios siempre van en aumento.
+
+IF EXISTS(SELECT 1 FROM sys.views WHERE name='AUMENTO_PROMEDIO' AND type='v')
+	DROP VIEW [DATA4MIND].[AUMENTO_PROMEDIO]
+GO
+
+CREATE VIEW [DATA4MIND].[AUMENTO_PROMEDIO] AS
+SELECT razonSocial, anio, (MAX(precio) - MIN(precio)) / MIN(precio) aumentoPromedio
+FROM [DATA4MIND].[BI_hechos_compra] h
+JOIN [DATA4MIND].[BI_tiempo] t ON h.fecha = t.fecha
+JOIN [DATA4MIND].[BI_proveedor] p ON h.idProveedor = p.cuit
+GROUP BY razonSocial, anio
+GO
+
 --Los 3 productos con mayor cantidad de reposición por mes.
 
 IF EXISTS(SELECT 1 FROM sys.views WHERE name='MAYOR_REPOSICION' AND type='v')
 	DROP VIEW [DATA4MIND].[MAYOR_REPOSICION]
 GO
 
-CREATE VIEW MAYOR_REPOSICION AS
-SELECT TOP 3 c1.fecha, c1.idProducto, 
-(
-	SELECT SUM(c2.cantidad)
-	FROM [DATA4MIND].[BI_hechos_compra] c2
-	WHERE c1.idProducto = c2.idProducto AND c1.fecha = c2.fecha
-) Cantidad_Total 
-FROM [DATA4MIND].[BI_hechos_compra] c1 
-GROUP BY c1.fecha, c1.idProducto
+CREATE VIEW [DATA4MIND].[MAYOR_REPOSICION] AS
+SELECT fecha, idProducto, reposicion
+FROM (
+	SELECT idProducto, fecha, SUM(cantidad) reposicion, ROW_NUMBER() OVER (PARTITION BY fecha ORDER BY SUM(cantidad) DESC) pos
+	FROM [DATA4MIND].[BI_hechos_compra]
+	GROUP BY idProducto, fecha
+) subq
+WHERE pos < 4
 GO
