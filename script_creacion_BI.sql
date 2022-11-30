@@ -50,8 +50,10 @@ BEGIN
 	-- COMPARTIDAS
 	
 	CREATE TABLE [DATA4MIND].[BI_provincia](
-		idProvincia INTEGER PRIMARY KEY,
-		provincia NVARCHAR(255)
+		idProvincia INTEGER IDENTITY(1,1) PRIMARY KEY,
+		nombreProvincia NVARCHAR(255),
+		codigoPostal DECIMAL(18,0),
+		nombreLocalidad NVARCHAR(255)
 	)
 
 	CREATE TABLE [DATA4MIND].[BI_tiempo](
@@ -120,7 +122,7 @@ BEGIN
 		importe DECIMAL(18,2)
 	)
 
-	CREATE TABLE [DATA4MIND].[BI_hecho_venta](
+	CREATE TABLE [DATA4MIND].[BI_hechos_venta](
 		idHechoVenta INTEGER IDENTITY(1,1) PRIMARY KEY,
 		idVenta DECIMAL(19,0) REFERENCES [DATA4MIND].[BI_venta],
 		idProvincia INTEGER REFERENCES [DATA4MIND].[BI_provincia],
@@ -131,6 +133,7 @@ BEGIN
 		idProducto NVARCHAR(50) REFERENCES [DATA4MIND].[BI_producto],
 		idCategoria INTEGER REFERENCES [DATA4MIND].[BI_categoria],
 		idTipoDescuento NUMERIC(10,0) REFERENCES [DATA4MIND].[BI_tipo_descuento],
+		costoEnvio DECIMAL(18,2),
 		fecha VARCHAR(7) REFERENCES [DATA4MIND].[BI_tiempo],
 		cantidad INT,
 		precio DECIMAL(18,2)
@@ -138,12 +141,20 @@ BEGIN
 	
 	-- COMPRA
 
-	CREATE TABLE [DATA4MIND].[BI_hecho_compra](
-		idHechoCompra INTEGER IDENTITY(1,1) PRIMARY KEY,
+	CREATE TABLE [DATA4MIND].[BI_proveedor](
+	    cuit NVARCHAR(50) PRIMARY KEY,
+		razonSocial NVARCHAR(50),
+		mail NVARCHAR(50), 
+		domicilio NVARCHAR(50)
+	)
+
+	CREATE TABLE [DATA4MIND].[BI_hechos_compra](
+		idCompra INTEGER IDENTITY(1,1) PRIMARY KEY,
+		fecha VARCHAR(7) REFERENCES [DATA4MIND].[BI_tiempo],
 		idProducto NVARCHAR(50) REFERENCES [DATA4MIND].[BI_producto],
 		idCategoria INTEGER REFERENCES [DATA4MIND].[BI_categoria],
 		idMedioPago INTEGER REFERENCES [DATA4MIND].[BI_medio_pago],
-		fecha VARCHAR(7) REFERENCES [DATA4MIND].[BI_tiempo],
+		idProveedor NVARCHAR(50) REFERENCES [DATA4MIND].[BI_proveedor],
 		cantidad INT,
 		precio DECIMAL(18,2),
 		descuentoAplicable DECIMAL(18,2)
@@ -163,8 +174,8 @@ AS
 BEGIN
 	-- DIMENSIONES COMPARTIDAS
 
-	INSERT INTO [DATA4MIND].[BI_provincia]
-	SELECT * FROM [DATA4MIND].[provincia]
+	INSERT INTO [DATA4MIND].[BI_provincia] (nombreProvincia, codigoPostal, nombreLocalidad)
+	SELECT p.provincia, l.codigo_postal, l.localidad FROM [DATA4MIND].[provincia] p JOIN [DATA4MIND].[localidad] l ON (p.provincia_codigo=l.provincia_codigo)
 
 	INSERT INTO [DATA4MIND].[BI_tiempo] (fecha, anio, mes)
 	SELECT DISTINCT FORMAT(fecha, 'yyyy-MM'), YEAR(fecha), MONTH(fecha)
@@ -210,10 +221,10 @@ BEGIN
 	INSERT INTO [DATA4MIND].[BI_cupon] (idVenta, importe)
 	SELECT venta_codigo, importe FROM [DATA4MIND].[cupon_canjeado]
 
-	INSERT INTO [DATA4MIND].[BI_hecho_venta] (idVenta, idProvincia, idTipoEnvio, idCanal, idMedioPago, 
-		idRangoEtario, idProducto, idCategoria, idTipoDescuento, fecha, cantidad, precio)
+	INSERT INTO [DATA4MIND].[BI_hechos_venta] (idVenta, idProvincia, idTipoEnvio, idCanal, idMedioPago, 
+		idRangoEtario, idProducto, idCategoria, idTipoDescuento, fecha, costoEnvio, cantidad, precio)
 	SELECT v.venta_codigo, provincia_codigo, medio_envio_codigo, canal_codigo, medio_pago_codigo, idRangoEtario, 
-		p.producto_codigo, categoria_codigo, tipo_descuento_codigo, fecha, cantidad, precio
+		p.producto_codigo, categoria_codigo, tipo_descuento_codigo, fecha, e.costo,  cantidad, precio
 	FROM [DATA4MIND].[venta] v
 	JOIN (
 		SELECT cliente_codigo, provincia_codigo, DATEDIFF(YEAR, fecha_de_nacimiento, GETDATE()) edad
@@ -234,14 +245,18 @@ BEGIN
 	JOIN [DATA4MIND].[descuento_venta] d ON v.venta_codigo = d.venta_codigo
 
 	-- COMPRA
+
+	INSERT INTO [DATA4MIND].[BI_proveedor] (cuit, razonSocial, mail, domicilio)
+	SELECT p.proveedor_cuit, p.razon_social, p.mail, p.domicilio FROM [DATA4MIND].[proveedor] p 
   
-	INSERT INTO [DATA4MIND].[BI_hecho_compra] (idProducto, idCategoria, idMedioPago, fecha, cantidad, precio, descuentoAplicable)
-	SELECT p.producto_codigo, p.categoria_codigo, c.medio_pago_codigo, fecha, cantidad, precio, c.descuento
+	INSERT INTO [DATA4MIND].[BI_hechos_compra] (fecha, idProducto, idCategoria, idMedioPago, idProveedor, cantidad, precio, descuentoAplicable)
+	SELECT c.fecha, p.producto_codigo, p.categoria_codigo, c.medio_pago_codigo, pe.cuit, cantidad, precio, c.descuento
 	FROM [DATA4MIND].[compra] c
 	JOIN [DATA4MIND].[producto_comprado] pc ON c.compra_codigo = pc.compra_codigo
 	JOIN [DATA4MIND].[producto_variante] pv ON pc.producto_variante_codigo = pv.producto_variante_codigo
 	JOIN [DATA4MIND].[producto] p ON pv.producto_codigo = p.producto_codigo
 	JOIN [DATA4MIND].[descuento_compra] d ON c.compra_codigo = d.compra_codigo
+	JOIN [DATA4MIND].[BI_proveedor] pe ON (c.proveedor_cuit=pe.cuit)
 END
 GO
 
@@ -253,14 +268,15 @@ IF EXISTS(SELECT 1 FROM sys.views WHERE name='GANANCIAS_CANAL' AND type='v')
 GO
 
 CREATE VIEW [DATA4MIND].[GANANCIAS_CANAL] AS
+
 SELECT detalle, v.fecha, ventas - compras ganancias
 FROM (
 	SELECT idCanal, fecha, SUM(cantidad * precio) ventas
-	FROM [DATA4MIND].[BI_hecho_venta]
+	FROM [DATA4MIND].[BI_hechos_venta]
 	GROUP BY idCanal, fecha
 ) v JOIN (
 	SELECT fecha, SUM(cantidad * precio) compras
-	FROM [DATA4MIND].[BI_hecho_compra]
+	FROM [DATA4MIND].[BI_hechos_compra]
 	GROUP BY fecha
 ) c ON v.fecha = c.fecha
 JOIN [DATA4MIND].[BI_canal] cc ON cc.idCanal = v.idCanal
@@ -274,11 +290,11 @@ CREATE VIEW [DATA4MIND].[RENTABILIDAD] AS
 SELECT TOP 5 descripcion, v.fecha periodo, (ventas - compras) / ventas * 100 rentabilidad
 FROM (
 	SELECT idProducto, fecha, SUM(cantidad * precio) ventas
-	FROM [DATA4MIND].[BI_hecho_venta]
+	FROM [DATA4MIND].[BI_hechos_venta]
 	GROUP BY idProducto, fecha
 ) v JOIN (
 	SELECT idProducto, fecha, SUM(cantidad * precio) compras
-	FROM [DATA4MIND].[BI_hecho_compra]
+	FROM [DATA4MIND].[BI_hechos_compra]
 	GROUP BY idProducto, fecha
 ) c ON v.idProducto = c.idProducto AND v.fecha = c.fecha
 JOIN [DATA4MIND].[BI_producto] p ON p.idProducto = v.idProducto
@@ -289,17 +305,51 @@ IF EXISTS(SELECT 1 FROM sys.views WHERE name='MAS_VENDIDOS' AND type='v')
 	DROP VIEW [DATA4MIND].[MAS_VENDIDOS]
 GO
 
+
 CREATE VIEW [DATA4MIND].[MAS_VENDIDOS] AS
 SELECT rangoEtario, fecha, categoria, SUM(cantidad) ventas
-FROM [DATA4MIND].[BI_hecho_venta] v
+FROM [DATA4MIND].[BI_hechos_venta] v
 JOIN [DATA4MIND].[BI_categoria] c ON v.idCategoria = c.idCategoria
 JOIN [DATA4MIND].[BI_rango_etario] r ON v.idRangoEtario = r.idRangoEtario
 WHERE v.idCategoria IN (
 	SELECT TOP 5 idCategoria
-	FROM [DATA4MIND].[BI_hecho_venta]
+	FROM [DATA4MIND].[BI_hechos_venta]
 	WHERE idRangoEtario = v.idRangoEtario AND fecha = v.fecha
 	GROUP BY idCategoria
 	ORDER BY SUM(cantidad) DESC
 )
 GROUP BY rangoEtario, fecha, categoria
 GO
+
+IF EXISTS(SELECT 1 FROM sys.views WHERE name='PORCENTAJE_ENVIOS' AND type='v')
+	DROP VIEW [DATA4MIND].[PORCENTAJE_ENVIOS]
+GO
+
+CREATE VIEW [DATA4MIND].[PORCENTAJE_ENVIOS] AS
+(SELECT t.fecha Fecha, p.nombreProvincia Provincia, 100*(SELECT COUNT(v.costoEnvio)/SUM(v.costoEnvio) FROM [DATA4MIND].[BI_hechos_venta] v WHERE v.idProvincia=p.idProvincia AND v.costoEnvio IS NOT NULL) Porcentaje 
+FROM [DATA4MIND].[BI_hechos_venta] hv 
+JOIN [DATA4MIND].[BI_provincia] p ON (hv.idProvincia=p.idProvincia)
+JOIN [DATA4MIND].[BI_tiempo] t ON (hv.fecha=t.fecha)
+GROUP BY p.idProvincia, t.fecha, p.nombreProvincia)
+GO
+
+IF EXISTS(SELECT 1 FROM sys.views WHERE name='PROMEDIO_ENVIOS' AND type='v')
+	DROP VIEW [DATA4MIND].[PROMEDIO_ENVIOS]
+GO
+
+CREATE VIEW [DATA4MIND].[PROMEDIO_ENVIOS] AS
+(SELECT prom.fecha Mes, p.nombreProvincia Provincia, me.medioEnvio Medio_de_Envio, prom.Suma_Costos_Envios Promedio FROM 
+(SELECT v.fecha, v.idProvincia Nro_Provincia, AVG(v.costoEnvio) Suma_Costos_Envios FROM [DATA4MIND].[BI_hechos_venta] v GROUP BY v.idProvincia, v.fecha) prom 
+JOIN [DATA4MIND].[BI_provincia] p ON (prom.Nro_Provincia=p.idProvincia)
+JOIN [DATA4MIND].[BI_hechos_venta] hv ON (prom.Nro_Provincia=hv.idProvincia)
+JOIN [DATA4MIND].[BI_medio_envio] me ON (hv.idTipoEnvio=me.idTipoEnvio))
+
+
+
+SELECT COUNT(v.costoEnvio) Suma_Costos_Envios FROM [DATA4MIND].[BI_hechos_venta] v GROUP BY v.idProvincia
+SELECT SUM(v.costoEnvio) Suma_Costos_Envios FROM [DATA4MIND].[BI_hechos_venta] v GROUP BY v.idProvincia
+SELECT COUNT(costoEnvio) FROM [DATA4MIND].[BI_hechos_venta]
+
+-- select * from [DATA4MIND].[GANANCIAS_CANAL] order by 1,2
+--select * from [DATA4MIND].[PORCENTAJE_ENVIOS] order by 1, 2
+--select * from [DATA4MIND].[PROMEDIO_ENVIOS] order by 1, 2
