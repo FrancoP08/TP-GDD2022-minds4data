@@ -51,9 +51,7 @@ BEGIN
 	
 	CREATE TABLE [DATA4MIND].[BI_provincia](
 		idProvincia INTEGER IDENTITY(1,1) PRIMARY KEY,
-		nombreProvincia NVARCHAR(255),
-		codigoPostal DECIMAL(18,0),
-		nombreLocalidad NVARCHAR(255)
+		nombreProvincia NVARCHAR(255)
 	)
 
 	CREATE TABLE [DATA4MIND].[BI_tiempo](
@@ -174,8 +172,8 @@ AS
 BEGIN
 	-- DIMENSIONES COMPARTIDAS
 
-	INSERT INTO [DATA4MIND].[BI_provincia] (nombreProvincia, codigoPostal, nombreLocalidad)
-	SELECT p.provincia, l.codigo_postal, l.localidad FROM [DATA4MIND].[provincia] p JOIN [DATA4MIND].[localidad] l ON (p.provincia_codigo=l.provincia_codigo)
+	INSERT INTO [DATA4MIND].[BI_provincia] (nombreProvincia)
+	SELECT p.provincia FROM [DATA4MIND].[provincia] p 
 
 	INSERT INTO [DATA4MIND].[BI_tiempo] (fecha, anio, mes)
 	SELECT DISTINCT FORMAT(fecha, 'yyyy-MM'), YEAR(fecha), MONTH(fecha)
@@ -326,7 +324,7 @@ IF EXISTS(SELECT 1 FROM sys.views WHERE name='PORCENTAJE_ENVIOS' AND type='v')
 GO
 
 CREATE VIEW [DATA4MIND].[PORCENTAJE_ENVIOS] AS
-(SELECT t.fecha Fecha, p.nombreProvincia Provincia, 100*(SELECT COUNT(v.costoEnvio)/SUM(v.costoEnvio) FROM [DATA4MIND].[BI_hechos_venta] v WHERE v.idProvincia=p.idProvincia AND v.costoEnvio IS NOT NULL) Porcentaje 
+(SELECT t.fecha Fecha, p.nombreProvincia Provincia, ROUND(100*(SELECT COUNT(v.costoEnvio)/SUM(v.costoEnvio) FROM [DATA4MIND].[BI_hechos_venta] v WHERE v.idProvincia=p.idProvincia AND v.costoEnvio IS NOT NULL), 3) Porcentaje 
 FROM [DATA4MIND].[BI_hechos_venta] hv 
 JOIN [DATA4MIND].[BI_provincia] p ON (hv.idProvincia=p.idProvincia)
 JOIN [DATA4MIND].[BI_tiempo] t ON (hv.fecha=t.fecha)
