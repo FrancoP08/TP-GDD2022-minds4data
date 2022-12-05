@@ -339,7 +339,7 @@ CREATE VIEW [DATA4MIND].[PROMEDIO_ENVIOS] AS
 (SELECT prom.fecha Mes, p.nombreProvincia Provincia, me.medioEnvio Medio_de_Envio, prom.Suma_Costos_Envios Promedio FROM 
 (SELECT DISTINCT v.fecha, v.idProvincia Nro_Provincia, AVG(v.costoEnvio) Suma_Costos_Envios FROM [DATA4MIND].[BI_hechos_venta] v GROUP BY v.idProvincia, v.fecha) prom 
 JOIN [DATA4MIND].[BI_provincia] p ON (prom.Nro_Provincia=p.idProvincia)
-JOIN (SELECT hv.idHechoVenta, hv.idProvincia, SUM(hv. FROM [DATA4MIND].[BI_hechos_venta] hv)--[DATA4MIND].[BI_hechos_venta] hv ON (prom.Nro_Provincia=hv.idProvincia)
+JOIN (SELECT hv.idHechoVenta, hv.idProvincia, SUM(hv.) FROM [DATA4MIND].[BI_hechos_venta] hv)--[DATA4MIND].[BI_hechos_venta] hv ON (prom.Nro_Provincia=hv.idProvincia)
 JOIN [DATA4MIND].[BI_medio_envio] me ON (hv.idTipoEnvio=me.idTipoEnvio))
 GO
 

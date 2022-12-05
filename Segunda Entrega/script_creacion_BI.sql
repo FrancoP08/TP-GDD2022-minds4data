@@ -406,7 +406,7 @@ IF EXISTS(SELECT 1 FROM sys.views WHERE name='PROMEDIO_ENVIOS' AND type='v')
 GO
 
 CREATE VIEW [DATA4MIND].[PROMEDIO_ENVIOS] AS
-SELECT prom.fecha Mes, p.nombreProvincia Provincia, me.medioEnvio Medio_de_Envio, prom.Suma_Costos_Envios Promedio 
+SELECT DISTINCT prom.fecha Mes, p.nombreProvincia Provincia, me.medioEnvio Medio_de_Envio, prom.Suma_Costos_Envios Promedio 
 FROM (
 	SELECT v.fecha, v.idProvincia Nro_Provincia, AVG(vv.costoEnvio) Suma_Costos_Envios 
 	FROM [DATA4MIND].[BI_hechos_venta] v
