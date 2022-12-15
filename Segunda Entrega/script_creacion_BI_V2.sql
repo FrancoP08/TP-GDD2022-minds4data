@@ -136,29 +136,20 @@ BEGIN
 	costo DECIMAL(18,2)
 	)
 
-	--- COMPRA ---
-	CREATE TABLE [DATA4MIND].[BI_hecho_compra](
-	idHehcoCompra INTEGER IDENTITY(1,1) PRIMARY KEY, 
-	fecha NVARCHAR(7) REFERENCES [DATA4MIND].[BI_tiempo],
-	idProducto NVARCHAR(50) REFERENCES [DATA4MIND].[BI_producto],
-	idCategoria INTEGER REFERENCES [DATA4MIND].[BI_categoria],
+	--- GANANICA ---
+	CREATE TABLE [DATA4MIND].[BI_hecho_ganancia](
+	idHechoGanancia INTEGER IDENTITY(1,1) PRIMARY KEY,
+    fecha NVARCHAR(7) REFERENCES [DATA4MIND].[BI_tiempo],
 	idProveedor INTEGER REFERENCES [DATA4MIND].[BI_proveedor],
+	idCanal INTEGER REFERENCES [DATA4MIND].[BI_canal],
 	idTipoMedioPago INTEGER REFERENCES [DATA4MIND].[BI_medio_pago],
+	idCategoria INTEGER REFERENCES [DATA4MIND].[BI_categoria], 
+	idProducto NVARCHAR(50) REFERENCES [DATA4MIND].[BI_producto],
+	idRangoEtario INTEGER REFERENCES [DATA4MIND].[BI_rango_etario],
 	cantidadComprada INT,
+	cantidadVendida INT,
 	precio DECIMAL(18,2)
 	)
-
-	--- VENTA ---
-	CREATE TABLE [DATA4MIND].[BI_hecho_venta](
-	idHechoVenta INTEGER IDENTITY(1,1) PRIMARY KEY,
-	fecha NVARCHAR(7) REFERENCES [DATA4MIND].[BI_tiempo],
-	idProducto NVARCHAR(50) REFERENCES [DATA4MIND].[BI_producto],
-	idCategoria INTEGER REFERENCES [DATA4MIND].[BI_categoria],
-	idTipoMedioPago INTEGER REFERENCES [DATA4MIND].[BI_medio_pago],
-	idRangoEtario INTEGER REFERENCES [DATA4MIND].[BI_rango_etario],
-	idCanal INTEGER REFERENCES [DATA4MIND].[BI_canal],
-	cantidadVendida INT,
-	precio DECIMAL(18,2))
 END
 GO
 
@@ -237,21 +228,9 @@ BEGIN
 	GROUP BY bt.fecha, bp.idProvincia, bme.idTipoEnvio
 	)
 
-	INSERT INTO [DATA4MIND].[BI_hecho_compra] (fecha, idProducto, idCategoria, idProveedor, idTipoMedioPago, cantidadComprada, precio)
-	(SELECT DISTINCT bt.fecha, bp.idProducto, bc.idCategoria, bpr.idProveedor ,bmp.idMedioPago, SUM(pc.cantidad) cantidad, pc.precio FROM [DATA4MIND].[compra] c 
-	JOIN [DATA4MIND].[BI_tiempo] bt ON (bt.fecha= FORMAT(c.fecha, 'yyyy-MM'))
-	JOIN [DATA4MIND].[producto_comprado] pc ON (c.compra_codigo=pc.compra_codigo)
-	JOIN [DATA4MIND].[producto_variante] pv ON (pc.producto_variante_codigo=pv.producto_variante_codigo)
-	JOIN [DATA4MIND].[producto] p ON (p.producto_codigo=pv.producto_codigo)
-	JOIN [DATA4MIND].[BI_producto] bp on (bp.idProducto=p.producto_codigo)
-	JOIN [DATA4MIND].[BI_categoria] bc ON (bc.idCategoria=p.categoria_codigo)
-	JOIN [DATA4MIND].[BI_medio_pago] bmp ON (bmp.idMedioPago=c.medio_pago_codigo)
-	JOIN [DATA4MIND].[BI_proveedor] bpr ON (bpr.cuit=c.proveedor_cuit)
-	GROUP BY bt.fecha, bp.idProducto, bc.idCategoria, bmp.idMedioPago, pc.precio, bpr.idProveedor
-	)
 
-	INSERT INTO [DATA4MIND].[BI_hecho_venta] (fecha, idProducto, idCategoria, idTipoMedioPago, idRangoEtario, idCanal, cantidadVendida, precio)
-	(SELECT DISTINCT bt.fecha, bp.idProducto, bc.idCategoria, bmp.idMedioPago, bre.idRangoEtario, bca.idCanal, SUM(pve.cantidad) cantidad, pve.precio FROM [DATA4MIND].[venta] v
+	INSERT INTO [DATA4MIND].[BI_hecho_ganancia] (fecha, idProducto, idCategoria, idTipoMedioPago, idRangoEtario, idCanal, idProveedor, cantidadVendida, cantidadComprada, precio)
+	(SELECT DISTINCT bt.fecha, bp.idProducto, bc.idCategoria, bmp.idMedioPago, bre.idRangoEtario, bca.idCanal, bpro.idProveedor, SUM(pve.cantidad) cantidadVendida, SUM(pco.cantidad) cantidadComprada, pve.precio FROM [DATA4MIND].[venta] v
 	JOIN [DATA4MIND].[BI_tiempo] bt ON (bt.fecha= FORMAT(v.fecha, 'yyyy-MM'))
 	JOIN [DATA4MIND].[BI_medio_pago] bmp ON (bmp.idMedioPago=v.medio_pago_codigo)
 	JOIN [DATA4MIND].[BI_canal] bca ON (bca.idCanal=v.canal_codigo)
@@ -269,10 +248,13 @@ BEGIN
 		END = bre.idRangoEtario
 	JOIN [DATA4MIND].[producto_vendido] pve ON (v.venta_codigo=pve.venta_codigo)
 	JOIN [DATA4MIND].[producto_variante] pva ON (pve.producto_variante_codigo=pva.producto_variante_codigo)
+	JOIN [DATA4MIND].[producto_comprado] pco ON (pco.producto_variante_codigo=pva.producto_variante_codigo)
+	JOIN [DATA4MIND].[compra] co ON (co.compra_codigo=pco.compra_codigo) 
 	JOIN [DATA4MIND].[producto] p ON (p.producto_codigo=pva.producto_codigo)
 	JOIN [DATA4MIND].[BI_producto] bp on (bp.idProducto=p.producto_codigo)
 	JOIN [DATA4MIND].[BI_categoria] bc ON (bc.idCategoria=p.categoria_codigo)
-	GROUP BY bt.fecha, bp.idProducto, bc.idCategoria, bmp.idMedioPago, bre.idRangoEtario, bca.idCanal, pve.precio
+	JOIN [DATA4MIND].[BI_proveedor] bpro ON (bpro.cuit=co.proveedor_cuit)
+	GROUP BY bt.fecha, bp.idProducto, bc.idCategoria, bmp.idMedioPago, bre.idRangoEtario, bca.idCanal, pve.precio, bpro.idProveedor
 	)
 END
 GO
@@ -291,16 +273,16 @@ IF EXISTS(SELECT 1 FROM sys.views WHERE name='GANANCIAS_CANAL' AND type='v')
 GO
 
 CREATE VIEW [DATA4MIND].[GANANCIAS_CANAL] AS 
-(SELECT v.fecha, bc.idCanal, (v.ventas - c.compras - )  FROM 
-	(SELECT DISTINCT bv.idCanal, bv.fecha, (SUM(bv.cantidad)*pv.precio) ventas
-	FROM [GD2C2022].[DATA4MIND].[BI_hecho_venta] bv
-	GROUP BY idCanal, fecha) v
-JOIN (SELECT DISTINCT bc.fecha, (SUM(bc.cantidad)*pc.precio) compras
-	FROM [GD2C2022].[DATA4MIND].[BI_hecho_compra] bc
-	GROUP BY fecha) c ON v.fecha = c.fecha
-JOIN [DATA4MIND].[BI_hecho_descuento_venta] bcv ON (bcv.fecha=v.fecha)
+(SELECT v.fecha, bc.idCanal, (SUM(v.cant_total*v.precio) - SUM(c.cant_total*c.precio) - SUM(bdv.costoMedioPago)) Total FROM 
+	(SELECT DISTINCT bv.idCanal, bv.fecha, SUM(bv.cantidadVendida) cant_total, bv.precio
+	FROM [DATA4MIND].[BI_hecho_venta] bv
+	GROUP BY bv.idCanal, bv.fecha, bv.precio) v
+JOIN (SELECT DISTINCT bc.fecha, SUM(bc.cantidadComprada) cant_total, bc.precio 
+	FROM [DATA4MIND].[BI_hecho_compra] bc
+	GROUP BY bc.fecha, bc.precio) c ON v.fecha = c.fecha
+JOIN [DATA4MIND].[BI_hecho_descuento_venta] bdv ON (bdv.fecha=v.fecha)
 JOIN [DATA4MIND].[BI_canal] bc ON bc.idCanal = v.idCanal
-GROUP BY canal, v.fecha, ventas
+GROUP BY v.fecha, bc.idCanal
 )
 
 
@@ -430,6 +412,23 @@ IF EXISTS(SELECT 1 FROM sys.views WHERE name='PORCENTAJE_ENVIOS' AND type='v')
 	DROP VIEW [DATA4MIND].[PORCENTAJE_ENVIOS]
 GO
 
+
+CREATE VIEW [DATA4MIND].[PORCENTAJE_ENVIOS] AS
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/**
 CREATE VIEW [DATA4MIND].[PORCENTAJE_ENVIOS] AS
 SELECT t.fecha Fecha, p.nombreProvincia Provincia, ROUND(100*(
 	SELECT COUNT(vv.costoEnvio)/SUM(vv.costoEnvio)
@@ -442,6 +441,7 @@ JOIN [DATA4MIND].[BI_provincia] p ON (hv.idProvincia=p.idProvincia)
 JOIN [DATA4MIND].[BI_tiempo] t ON (hv.fecha=t.fecha)
 GROUP BY p.idProvincia, t.fecha, p.nombreProvincia
 GO
+**/
 
 --Valor promedio de envío por Provincia por Medio De Envío anual.
 
