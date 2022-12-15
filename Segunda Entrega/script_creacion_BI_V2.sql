@@ -47,116 +47,118 @@ GO
 ALTER PROCEDURE [DATA4MIND].[CREATE_TABLES_BI] 
 AS 
 BEGIN
-	-- COMPARTIDAS
-	
-	CREATE TABLE [DATA4MIND].[BI_provincia](
-		idProvincia INTEGER IDENTITY(1,1) PRIMARY KEY,
-		nombreProvincia NVARCHAR(255)
-	)
 
-	CREATE TABLE [DATA4MIND].[BI_tiempo](
-		fecha VARCHAR(7) PRIMARY KEY,
-		anio INT,
-		mes INT
-	)
+    ------ TABLAS DIMENSIONES -------
 
-	CREATE TABLE [DATA4MIND].[BI_tipo_descuento](
-		idTipoDescuento NUMERIC(10,0) PRIMARY KEY,
-		tipoDescuento NVARCHAR(255)
+	--- COMPARTIDAS ---
+	CREATE TABLE [DATA4MIND].[BI_tiempo] (
+	fecha NVARCHAR(7) PRIMARY KEY,
+	anio NVARCHAR(4),
+	mes NVARCHAR(3)
 	)
 
 	CREATE TABLE [DATA4MIND].[BI_medio_pago](
-		idMedioPago INTEGER  PRIMARY KEY,
+		idMedioPago INTEGER IDENTITY(1,1) PRIMARY KEY,
 		tipoMedioPago NVARCHAR(255)
 	)
 
-	-- PRODUCTO
+    --- PRODUCTO ---
 
 	CREATE TABLE [DATA4MIND].[BI_producto](
 		idProducto NVARCHAR(50) PRIMARY KEY,
 		descripcion NVARCHAR(50)
 	)
 
-	CREATE TABLE [DATA4MIND].[BI_categoria](
-		idCategoria INTEGER PRIMARY KEY,
-		categoria NVARCHAR(50)
+	CREATE TABLE [DATA4MIND].[BI_categoria] (
+	idCategoria INTEGER IDENTITY(1,1) PRIMARY KEY,
+	categoria NVARCHAR(50) 
 	)
 
-	-- VENTA
-
-	CREATE TABLE [DATA4MIND].[BI_canal](
-		idCanal INTEGER PRIMARY KEY, 
-		canal NVARCHAR(2255),
-		costo DECIMAL(18,2)
-	)
-
-	CREATE TABLE [DATA4MIND].[BI_medio_envio](
-		idTipoEnvio INTEGER PRIMARY KEY,
-		medioEnvio NVARCHAR(255)
-	)
+	--- RANGO ETARIO ---
 
 	CREATE TABLE [DATA4MIND].[BI_rango_etario](
-		idRangoEtario INTEGER IDENTITY(1,1) PRIMARY KEY,
-		rangoEtario NVARCHAR(255)
+	idRangoEtario INTEGER IDENTITY(1,1) PRIMARY KEY,
+	rango NVARCHAR(20)
 	)
 
-
-	CREATE TABLE [DATA4MIND].[BI_venta] (
-		idVenta DECIMAL(19,0) PRIMARY KEY,
-		costoMedioPago DECIMAL (18,2),
-		costoEnvio DECIMAL(18,2),
-		costoCanal DECIMAL(18,2)
-	)
-
-	CREATE TABLE [DATA4MIND].[BI_descuento_venta] (
-		idDescuento INT IDENTITY PRIMARY KEY,
-		idVenta DECIMAL(19,0),
-		importe DECIMAL(18,2)
-	)
-
-	CREATE TABLE [DATA4MIND].[BI_cupon] (
-		idCupon INT IDENTITY PRIMARY KEY,
-		idVenta DECIMAL(19,0),
-		importe DECIMAL(18,2),
-		tipoCupon NVARCHAR(50)
-	)
-
-	CREATE TABLE [DATA4MIND].[BI_hechos_venta](
-		idHechoVenta INTEGER IDENTITY(1,1) PRIMARY KEY,
-		idVenta DECIMAL(19,0) REFERENCES [DATA4MIND].[BI_venta],
-		idProvincia INTEGER REFERENCES [DATA4MIND].[BI_provincia],
-		idTipoEnvio INTEGER REFERENCES [DATA4MIND].[BI_medio_envio],
-		idCanal INTEGER REFERENCES [DATA4MIND].[BI_canal],
-		idMedioPago INTEGER REFERENCES [DATA4MIND].[BI_medio_pago],
-		idRangoEtario INTEGER REFERENCES [DATA4MIND].[BI_rango_etario],
-		idProducto NVARCHAR(50) REFERENCES [DATA4MIND].[BI_producto],
-		idCategoria INTEGER REFERENCES [DATA4MIND].[BI_categoria],
-		idTipoDescuento NUMERIC(10,0) REFERENCES [DATA4MIND].[BI_tipo_descuento],
-		fecha VARCHAR(7) REFERENCES [DATA4MIND].[BI_tiempo],
-		cantidad INT,
-		precio DECIMAL(18,2)
-	)
-	
-	-- COMPRA
+	--- PROVEEDOR ---
 
 	CREATE TABLE [DATA4MIND].[BI_proveedor](
-	    cuit NVARCHAR(50) PRIMARY KEY,
+	    idProveedor INTEGER IDENTITY(1,1) PRIMARY KEY,
+	    cuit NVARCHAR(50) UNIQUE,
 		razonSocial NVARCHAR(50),
 		mail NVARCHAR(50), 
 		domicilio NVARCHAR(50)
 	)
 
-	CREATE TABLE [DATA4MIND].[BI_hechos_compra](
-		idCompra INTEGER IDENTITY(1,1) PRIMARY KEY,
-		fecha VARCHAR(7) REFERENCES [DATA4MIND].[BI_tiempo],
-		idProducto NVARCHAR(50) REFERENCES [DATA4MIND].[BI_producto],
-		idCategoria INTEGER REFERENCES [DATA4MIND].[BI_categoria],
-		idMedioPago INTEGER REFERENCES [DATA4MIND].[BI_medio_pago],
-		idProveedor NVARCHAR(50) REFERENCES [DATA4MIND].[BI_proveedor],
-		cantidad INT,
-		precio DECIMAL(18,2),
-		descuentoAplicable DECIMAL(18,2)
+	--- DESCUENTOS ---
+	CREATE TABLE [DATA4MIND].[BI_tipo_descuento](
+		idTipoDescuento INTEGER IDENTITY(1,1) PRIMARY KEY,
+		tipoDescuento NVARCHAR(255)
 	)
+
+	CREATE TABLE [DATA4MIND].[BI_canal](
+		idCanal INTEGER IDENTITY(1,1) PRIMARY KEY, 
+		canal NVARCHAR(2255),
+		costo DECIMAL(18,2)
+	)
+
+	--- ENVIOS ---
+	CREATE TABLE [DATA4MIND].[BI_medio_envio](
+		idTipoEnvio INTEGER IDENTITY(1,1) PRIMARY KEY,
+		medioEnvio NVARCHAR(255)
+	)
+
+	CREATE TABLE [DATA4MIND].[BI_provincia](
+	idProvincia INTEGER IDENTITY(1,1) PRIMARY KEY,
+	provincia NVARCHAR(255)
+	)
+
+	------ TABLAS HECHOS -------
+
+	--- DESCUENTOS DE VENTAS ---
+	CREATE TABLE [DATA4MIND].[BI_hecho_descuento_venta](
+	idHechoDescuentoVenta INTEGER IDENTITY(1,1) PRIMARY KEY,
+	fecha NVARCHAR(7) REFERENCES [DATA4MIND].[BI_tiempo],
+	idTipoDescuento INTEGER REFERENCES [DATA4MIND].[BI_tipo_descuento],
+	idCanal INTEGER REFERENCES [DATA4MIND].[BI_canal],
+	idTipoMedioPago INTEGER REFERENCES [DATA4MIND].[BI_medio_pago],
+	costoMedioPago DECIMAL(18,2),
+	importeTotal DECIMAL(18,2)
+	)
+
+	--- ENVIO ---
+	CREATE TABLE [DATA4MIND].[BI_hecho_envio](
+	idHechoEnvio INTEGER IDENTITY(1,1) PRIMARY KEY,
+	fecha NVARCHAR(7) REFERENCES [DATA4MIND].[BI_tiempo],
+	idProvincia INTEGER REFERENCES [DATA4MIND].[BI_provincia],
+	idMedioEnvio INTEGER REFERENCES [DATA4MIND].[BI_medio_envio],
+	costo DECIMAL(18,2)
+	)
+
+	--- COMPRA ---
+	CREATE TABLE [DATA4MIND].[BI_hecho_compra](
+	idHehcoCompra INTEGER IDENTITY(1,1) PRIMARY KEY, 
+	fecha NVARCHAR(7) REFERENCES [DATA4MIND].[BI_tiempo],
+	idProducto NVARCHAR(50) REFERENCES [DATA4MIND].[BI_producto],
+	idCategoria INTEGER REFERENCES [DATA4MIND].[BI_categoria],
+	idProveedor INTEGER REFERENCES [DATA4MIND].[BI_proveedor],
+	idTipoMedioPago INTEGER REFERENCES [DATA4MIND].[BI_medio_pago],
+	cantidadComprada INT,
+	precio DECIMAL(18,2)
+	)
+
+	--- VENTA ---
+	CREATE TABLE [DATA4MIND].[BI_hecho_venta](
+	idHechoVenta INTEGER IDENTITY(1,1) PRIMARY KEY,
+	fecha NVARCHAR(7) REFERENCES [DATA4MIND].[BI_tiempo],
+	idProducto NVARCHAR(50) REFERENCES [DATA4MIND].[BI_producto],
+	idCategoria INTEGER REFERENCES [DATA4MIND].[BI_categoria],
+	idTipoMedioPago INTEGER REFERENCES [DATA4MIND].[BI_medio_pago],
+	idRangoEtario INTEGER REFERENCES [DATA4MIND].[BI_rango_etario],
+	idCanal INTEGER REFERENCES [DATA4MIND].[BI_canal],
+	cantidadVendida INT,
+	precio DECIMAL(18,2))
 END
 GO
 
@@ -170,98 +172,114 @@ GO
 ALTER PROCEDURE [DATA4MIND].[MIGRAR_BI]
 AS
 BEGIN
-	-- DIMENSIONES COMPARTIDAS
 
-	INSERT INTO [DATA4MIND].[BI_provincia] (nombreProvincia)
-	SELECT p.provincia FROM [DATA4MIND].[provincia] p 
+    ------- TABLAS DIMENSIONES --------
 
+	--- COMPARTIDAS ---
 	INSERT INTO [DATA4MIND].[BI_tiempo] (fecha, anio, mes)
-	SELECT DISTINCT FORMAT(fecha, 'yyyy-MM'), YEAR(fecha), MONTH(fecha)
+	(SELECT DISTINCT FORMAT(fecha, 'yyyy-MM'), YEAR(fecha), MONTH(fecha)
 	FROM [DATA4MIND].[venta]
 	UNION
 	SELECT DISTINCT FORMAT(fecha, 'yyyy-MM'), YEAR(fecha), MONTH(fecha)
-	FROM [DATA4MIND].[compra]
+	FROM [DATA4MIND].[compra])
+	
+	INSERT INTO [DATA4MIND].[BI_medio_pago] (tipoMedioPago)
+	(SELECT medio_pago FROM [DATA4MIND].[medio_pago])
 
-	INSERT INTO [DATA4MIND].[BI_medio_pago]
-	SELECT * FROM [DATA4MIND].[medio_pago]
-
-	INSERT INTO [DATA4MIND].[BI_rango_etario] (rangoEtario)
-	VALUES ('Menores a 25'), ('Entre 25 a 35'), ('Entre 35 a 55'), ('Mayores a 55')
-
-	-- PRODUCTO
+	--- PRODUCTO ---
 
 	INSERT INTO [DATA4MIND].[BI_producto] (idProducto, descripcion)
-	SELECT producto_codigo, descripcion
-	FROM [DATA4MIND].[producto]
+	(SELECT p.producto_codigo, p.descripcion FROM [DATA4MIND].[producto] p)
 
-	INSERT INTO [DATA4MIND].[BI_categoria]
-	SELECT * FROM [DATA4MIND].[categoria]
+	INSERT INTO [DATA4MIND].[BI_categoria] (categoria)
+	(SELECT c.categoria FROM [DATA4MIND].[categoria] c)
 
-	-- VENTA
+	--- RANGO ETARIO ---
+	INSERT INTO [DATA4MIND].[BI_rango_etario] (rango)
+	VALUES ('Menores a 25'), ('Entre 25 a 35'), ('Entre 35 a 55'), ('Mayores a 55')
+	
+	--- PROVEEDOR ---
+	INSERT INTO [DATA4MIND].[BI_proveedor] (cuit, razonSocial, mail, domicilio)
+	(SELECT proveedor_cuit, razon_social, mail, domicilio FROM [DATA4MIND].[proveedor])
+	
+	--- DESCUENTOS ---
+	INSERT INTO [DATA4MIND].[BI_tipo_descuento] (tipoDescuento)
+	(SELECT td.concepto FROM [DATA4MIND].[tipo_descuento] td)
 
-	INSERT INTO [DATA4MIND].[BI_canal]
-	SELECT * FROM [DATA4MIND].[canal]
+	INSERT INTO [DATA4MIND].[BI_canal] (canal, costo)
+	(SELECT c.canal, c.costo FROM [DATA4MIND].[canal] c)
 
-	INSERT INTO [DATA4MIND].[BI_medio_envio]
-	SELECT * FROM [DATA4MIND].[medio_envio]
+	--- ENVIOS ---
+	INSERT INTO [DATA4MIND].[BI_medio_envio] (medioEnvio)
+	(SELECT mv.medio_envio FROM [DATA4MIND].[medio_envio] mv)
 
-	INSERT INTO [DATA4MIND].[BI_tipo_descuento]
-	SELECT * FROM [DATA4MIND].[tipo_descuento]
+	INSERT INTO [DATA4MIND].[BI_provincia] (provincia)
+	(SELECT p.provincia FROM [DATA4MIND].[provincia] p)
+	
+	------- TABLAS HECHOS --------
+	INSERT INTO [DATA4MIND].[BI_hecho_descuento_venta] (fecha, idTipoDescuento, idCanal, idTipoMedioPago, costoMedioPago, importeTotal)
+	(SELECT DISTINCT bt.fecha, td.tipo_descuento_codigo, v.canal_codigo, v.medio_pago_codigo, SUM(v.medio_pago_costo), SUM(v.total_descuentos) FROM [DATA4MIND].[venta] v
+	JOIN [DATA4MIND].[descuento_venta] dv ON (dv.venta_codigo=v.venta_codigo)
+	JOIN [DATA4MIND].[tipo_descuento] td ON (td.tipo_descuento_codigo=dv.tipo_descuento_codigo)
+	JOIN [DATA4MIND].[BI_canal] bc ON (bc.idCanal=v.canal_codigo)
+	JOIN [DATA4MIND].[BI_medio_pago] bmp ON (bmp.idMedioPago=v.medio_pago_codigo)
+	JOIN [DATA4MIND].[BI_tiempo] bt ON (bt.fecha= FORMAT(v.fecha, 'yyyy-MM'))
+	GROUP BY bt.fecha, td.tipo_descuento_codigo, v.canal_codigo, v.medio_pago_codigo
+	)
 
-	INSERT INTO [DATA4MIND].[BI_venta]
-	SELECT venta_codigo, medio_pago_costo, costo_envio, canal_costo
-	FROM [DATA4MIND].[venta]
+	INSERT INTO [DATA4MIND].[BI_hecho_envio] (fecha, idProvincia, idMedioEnvio, costo)
+	(SELECT DISTINCT bt.fecha, bp.idProvincia, bme.idTipoEnvio, SUM(e.costo) FROM [DATA4MIND].[venta] v 
+	JOIN [DATA4MIND].[envio] e ON (e.venta_codigo=V.venta_codigo)
+	JOIN [DATA4MIND].[BI_tiempo] bt ON (bt.fecha= FORMAT(v.fecha, 'yyyy-MM'))
+	JOIN [DATA4MIND].[localidad] l ON (l.localidad_codigo=e.localidad_codigo)
+	JOIN [DATA4MIND].[BI_provincia] bp ON (bp.idProvincia=l.provincia_codigo)
+	JOIN [DATA4MIND].[BI_medio_envio] bme ON (bme.idTipoEnvio=e.medio_envio_codigo)
+	GROUP BY bt.fecha, bp.idProvincia, bme.idTipoEnvio
+	)
 
-	INSERT INTO [DATA4MIND].[BI_descuento_venta] (idVenta, importe)
-	SELECT venta_codigo, importe
-	FROM [DATA4MIND].[descuento_venta]
+	INSERT INTO [DATA4MIND].[BI_hecho_compra] (fecha, idProducto, idCategoria, idProveedor, idTipoMedioPago, cantidadComprada, precio)
+	(SELECT DISTINCT bt.fecha, bp.idProducto, bc.idCategoria, bpr.idProveedor ,bmp.idMedioPago, SUM(pc.cantidad) cantidad, pc.precio FROM [DATA4MIND].[compra] c 
+	JOIN [DATA4MIND].[BI_tiempo] bt ON (bt.fecha= FORMAT(c.fecha, 'yyyy-MM'))
+	JOIN [DATA4MIND].[producto_comprado] pc ON (c.compra_codigo=pc.compra_codigo)
+	JOIN [DATA4MIND].[producto_variante] pv ON (pc.producto_variante_codigo=pv.producto_variante_codigo)
+	JOIN [DATA4MIND].[producto] p ON (p.producto_codigo=pv.producto_codigo)
+	JOIN [DATA4MIND].[BI_producto] bp on (bp.idProducto=p.producto_codigo)
+	JOIN [DATA4MIND].[BI_categoria] bc ON (bc.idCategoria=p.categoria_codigo)
+	JOIN [DATA4MIND].[BI_medio_pago] bmp ON (bmp.idMedioPago=c.medio_pago_codigo)
+	JOIN [DATA4MIND].[BI_proveedor] bpr ON (bpr.cuit=c.proveedor_cuit)
+	GROUP BY bt.fecha, bp.idProducto, bc.idCategoria, bmp.idMedioPago, pc.precio, bpr.idProveedor
+	)
 
-	INSERT INTO [DATA4MIND].[BI_cupon] (idVenta, importe, tipoCupon)
-	SELECT venta_codigo, importe, tipo
-	FROM [DATA4MIND].[cupon_canjeado] cc
-	JOIN [DATA4MIND].[cupon] c ON cc.cupon_codigo = c.cupon_codigo
-
-	INSERT INTO [DATA4MIND].[BI_hechos_venta] (idVenta, idProvincia, idTipoEnvio, idCanal, idMedioPago, 
-		idRangoEtario, idProducto, idCategoria, idTipoDescuento, fecha, cantidad, precio)
-	SELECT v.venta_codigo, provincia_codigo, medio_envio_codigo, canal_codigo, medio_pago_codigo, idRangoEtario, 
-		p.producto_codigo, categoria_codigo, tipo_descuento_codigo, fecha, cantidad, precio
-	FROM [DATA4MIND].[venta] v
+	INSERT INTO [DATA4MIND].[BI_hecho_venta] (fecha, idProducto, idCategoria, idTipoMedioPago, idRangoEtario, idCanal, cantidadVendida, precio)
+	(SELECT DISTINCT bt.fecha, bp.idProducto, bc.idCategoria, bmp.idMedioPago, bre.idRangoEtario, bca.idCanal, SUM(pve.cantidad) cantidad, pve.precio FROM [DATA4MIND].[venta] v
+	JOIN [DATA4MIND].[BI_tiempo] bt ON (bt.fecha= FORMAT(v.fecha, 'yyyy-MM'))
+	JOIN [DATA4MIND].[BI_medio_pago] bmp ON (bmp.idMedioPago=v.medio_pago_codigo)
+	JOIN [DATA4MIND].[BI_canal] bca ON (bca.idCanal=v.canal_codigo)
 	JOIN (
 		SELECT cliente_codigo, provincia_codigo, DATEDIFF(YEAR, fecha_de_nacimiento, GETDATE()) edad
 		FROM [DATA4MIND].[cliente] cc
 		JOIN [DATA4MIND].[localidad] ll ON cc.localidad_codigo = ll.localidad_codigo
 	) c ON v.cliente_codigo = c.cliente_codigo
-	JOIN [DATA4MIND].[envio] e ON e.venta_codigo = v.venta_codigo
-	JOIN [DATA4MIND].[BI_rango_etario] r ON
+	JOIN [DATA4MIND].[BI_rango_etario] bre ON
 		CASE
-			WHEN edad < 25 THEN 'Menores a 25'
-			WHEN edad >= 25 AND edad <= 35 THEN 'Entre 25 a 35'
-			WHEN edad > 35 AND edad <= 55 THEN 'Entre 35 a 55'
-			ELSE 'Mayores a 55'
-		END = r.rangoEtario
-	JOIN [DATA4MIND].[producto_vendido] pv ON pv.venta_codigo = v.venta_codigo
-	JOIN [DATA4MIND].[producto_variante] pp ON pp.producto_variante_codigo = pv.producto_variante_codigo
-	JOIN [DATA4MIND].[producto] p ON p.producto_codigo = pp.producto_codigo
-	JOIN [DATA4MIND].[descuento_venta] d ON v.venta_codigo = d.venta_codigo
-
-	-- COMPRA
-
-	INSERT INTO [DATA4MIND].[BI_proveedor] (cuit, razonSocial, mail, domicilio)
-	SELECT p.proveedor_cuit, p.razon_social, p.mail, p.domicilio FROM [DATA4MIND].[proveedor] p 
-  
-	INSERT INTO [DATA4MIND].[BI_hechos_compra] (fecha, idProducto, idCategoria, idMedioPago, idProveedor, cantidad, precio, descuentoAplicable)
-	SELECT DISTINCT c.fecha, p.producto_codigo, p.categoria_codigo, c.medio_pago_codigo, pe.cuit, cantidad, precio, c.descuento
-	FROM [DATA4MIND].[compra] c
-	JOIN [DATA4MIND].[producto_comprado] pc ON c.compra_codigo = pc.compra_codigo
-	JOIN [DATA4MIND].[producto_variante] pv ON pc.producto_variante_codigo = pv.producto_variante_codigo
-	JOIN [DATA4MIND].[producto] p ON pv.producto_codigo = p.producto_codigo
-	JOIN [DATA4MIND].[descuento_compra] d ON c.compra_codigo = d.compra_codigo
-	JOIN [DATA4MIND].[BI_proveedor] pe ON (c.proveedor_cuit=pe.cuit)
+			WHEN edad < 25 THEN 1
+			WHEN edad >= 25 AND edad <= 35 THEN 2
+			WHEN edad > 35 AND edad <= 55 THEN 3
+			ELSE 4
+		END = bre.idRangoEtario
+	JOIN [DATA4MIND].[producto_vendido] pve ON (v.venta_codigo=pve.venta_codigo)
+	JOIN [DATA4MIND].[producto_variante] pva ON (pve.producto_variante_codigo=pva.producto_variante_codigo)
+	JOIN [DATA4MIND].[producto] p ON (p.producto_codigo=pva.producto_codigo)
+	JOIN [DATA4MIND].[BI_producto] bp on (bp.idProducto=p.producto_codigo)
+	JOIN [DATA4MIND].[BI_categoria] bc ON (bc.idCategoria=p.categoria_codigo)
+	GROUP BY bt.fecha, bp.idProducto, bc.idCategoria, bmp.idMedioPago, bre.idRangoEtario, bca.idCanal, pve.precio
+	)
 END
 GO
 
 EXEC [DATA4MIND].[MIGRAR_BI]
 GO
+
 
 --Las ganancias mensuales de cada canal de venta.
 --Se entiende por ganancias al total de las ventas, menos el total de las
@@ -272,6 +290,24 @@ IF EXISTS(SELECT 1 FROM sys.views WHERE name='GANANCIAS_CANAL' AND type='v')
 	DROP VIEW [DATA4MIND].[GANANCIAS_CANAL]
 GO
 
+CREATE VIEW [DATA4MIND].[GANANCIAS_CANAL] AS 
+(SELECT v.fecha, bc.idCanal, (v.ventas - c.compras - )  FROM 
+	(SELECT DISTINCT bv.idCanal, bv.fecha, (SUM(bv.cantidad)*pv.precio) ventas
+	FROM [GD2C2022].[DATA4MIND].[BI_hecho_venta] bv
+	GROUP BY idCanal, fecha) v
+JOIN (SELECT DISTINCT bc.fecha, (SUM(bc.cantidad)*pc.precio) compras
+	FROM [GD2C2022].[DATA4MIND].[BI_hecho_compra] bc
+	GROUP BY fecha) c ON v.fecha = c.fecha
+JOIN [DATA4MIND].[BI_hecho_descuento_venta] bcv ON (bcv.fecha=v.fecha)
+JOIN [DATA4MIND].[BI_canal] bc ON bc.idCanal = v.idCanal
+GROUP BY canal, v.fecha, ventas
+)
+
+
+
+
+
+/**
 CREATE VIEW [DATA4MIND].[GANANCIAS_CANAL] AS
 SELECT canal, v.fecha, ventas - SUM(c.cantidad * c.precio) ganancias
 FROM (
@@ -288,6 +324,14 @@ JOIN [DATA4MIND].[BI_hechos_compra] c ON v.fecha = c.fecha
 JOIN [DATA4MIND].[BI_canal] cc ON cc.idCanal = v.idCanal
 GROUP BY canal, v.fecha, ventas
 GO
+**/
+
+
+
+
+
+
+
 
 --Los 5 productos con mayor rentabilidad anual, con sus respectivos %
 --Se entiende por rentabilidad a los ingresos generados por el producto
