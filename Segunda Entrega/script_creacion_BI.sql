@@ -352,18 +352,18 @@ IF EXISTS(SELECT 1 FROM sys.views WHERE name='MAS_VENDIDOS' AND type='v')
 GO
 
 CREATE VIEW [DATA4MIND].[MAS_VENDIDOS] AS
-SELECT rangoEtario, fecha, categoria, SUM(cantidad) ventas
-FROM [DATA4MIND].[BI_hechos_venta] v
+SELECT rango, fecha, categoria, SUM(cantidad) ventas
+FROM [DATA4MIND].[BI_hecho_venta] v
 JOIN [DATA4MIND].[BI_categoria] c ON v.idCategoria = c.idCategoria
 JOIN [DATA4MIND].[BI_rango_etario] r ON v.idRangoEtario = r.idRangoEtario
 WHERE v.idCategoria IN (
 	SELECT TOP 5 idCategoria
-	FROM [DATA4MIND].[BI_hechos_venta]
+	FROM [DATA4MIND].[BI_hecho_venta]
 	WHERE idRangoEtario = v.idRangoEtario AND fecha = v.fecha
 	GROUP BY idCategoria
 	ORDER BY SUM(cantidad) DESC
 )
-GROUP BY rangoEtario, fecha, categoria
+GROUP BY rango, fecha, categoria
 GO
 
 ---- 4
