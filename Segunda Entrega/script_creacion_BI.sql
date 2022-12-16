@@ -64,7 +64,7 @@ BEGIN
     --- PRODUCTO ---
 
 	CREATE TABLE [DATA4MIND].[BI_producto](
-		idProducto NVARCHAR(50) PRIMARY KEY,
+		idProducto INT IDENTITY(1,1) PRIMARY KEY,
 		descripcion NVARCHAR(50)
 	)
 
@@ -176,6 +176,7 @@ BEGIN
     ------- TABLAS DIMENSIONES --------
 
 	--- COMPARTIDAS ---
+
 	INSERT INTO [DATA4MIND].[BI_tiempo] (fecha, anio, mes)
 	(SELECT DISTINCT FORMAT(fecha, 'yyyy-MM'), YEAR(fecha), MONTH(fecha)
 	FROM [DATA4MIND].[venta]
@@ -188,28 +189,36 @@ BEGIN
 
 	--- PRODUCTO ---
 
-	INSERT INTO [DATA4MIND].[BI_producto] (idProducto, descripcion)
-	(SELECT p.producto_codigo, p.descripcion FROM [DATA4MIND].[producto] p)
+	INSERT INTO [DATA4MIND].[BI_producto] (descripcion)
+	(SELECT p.descripcion FROM [DATA4MIND].[producto] p)
 
 	INSERT INTO [DATA4MIND].[BI_categoria] (categoria)
 	(SELECT c.categoria FROM [DATA4MIND].[categoria] c)
 
 	--- RANGO ETARIO ---
+
 	INSERT INTO [DATA4MIND].[BI_rango_etario] (idRangoEtario, rango)
 	VALUES (1, 'Menores a 25'), (2, 'Entre 25 a 35'), (3, 'Entre 35 a 55'), (4, 'Mayores a 55')
 	
 	--- PROVEEDOR ---
+
 	INSERT INTO [DATA4MIND].[BI_proveedor] (cuit, razonSocial, mail, domicilio)
 	(SELECT proveedor_cuit, razon_social, mail, domicilio FROM [DATA4MIND].[proveedor])
 	
 	--- DESCUENTOS ---
+
 	INSERT INTO [DATA4MIND].[BI_tipo_descuento] (tipoDescuento)
-	(SELECT td.concepto FROM [DATA4MIND].[tipo_descuento] td)
+	(SELECT td.concepto FROM [DATA4MIND].[tipo_descuento] td
+	UNION
+	SELECT DISTINCT tipo FROM [DATA4MIND].[cupon])
+
+	--- CANAL ---
 
 	INSERT INTO [DATA4MIND].[BI_canal] (canal, costo)
 	(SELECT c.canal, c.costo FROM [DATA4MIND].[canal] c)
 
 	--- ENVIOS ---
+
 	INSERT INTO [DATA4MIND].[BI_medio_envio] (medioEnvio)
 	(SELECT mv.medio_envio FROM [DATA4MIND].[medio_envio] mv)
 
@@ -219,13 +228,18 @@ BEGIN
 	------- TABLAS HECHOS --------
 
 	INSERT INTO [DATA4MIND].[BI_hecho_descuento_venta] (fecha, idTipoDescuento, idCanal, idTipoMedioPago, costoMedioPago, importeTotal)
-	(SELECT DISTINCT FORMAT(v.fecha, 'yyyy-MM'), td.tipo_descuento_codigo, v.canal_codigo, v.medio_pago_codigo, SUM(v.medio_pago_costo), SUM(v.total_descuentos) 
+	(SELECT FORMAT(v.fecha, 'yyyy-MM'), idTipoDescuento, idCanal, idMedioPago, SUM(v.medio_pago_costo), SUM(COALESCE(dv.importe, c.valor))
 	FROM [DATA4MIND].[venta] v
 	JOIN [DATA4MIND].[descuento_venta] dv ON (dv.venta_codigo=v.venta_codigo)
 	JOIN [DATA4MIND].[tipo_descuento] td ON (td.tipo_descuento_codigo=dv.tipo_descuento_codigo)
-	JOIN [DATA4MIND].[BI_canal] bc ON (bc.idCanal=v.canal_codigo)
-	JOIN [DATA4MIND].[BI_medio_pago] bmp ON (bmp.idMedioPago=v.medio_pago_codigo)
-	GROUP BY FORMAT(v.fecha, 'yyyy-MM'), td.tipo_descuento_codigo, v.canal_codigo, v.medio_pago_codigo
+	JOIN [DATA4MIND].[cupon_canjeado] cc ON (cc.venta_codigo=v.venta_codigo)
+	JOIN [DATA4MIND].[cupon] c ON (c.cupon_codigo=cc.cupon_codigo)
+	JOIN [DATA4MIND].[BI_tipo_descuento] d ON (d.tipoDescuento = COALESCE(td.concepto, c.tipo))
+	JOIN [DATA4MIND].[canal] ca ON ca.canal_codigo = v.canal_codigo
+	JOIN [DATA4MIND].[BI_canal] bc ON (bc.canal=ca.canal)
+	JOIN [DATA4MIND].[medio_pago] m ON v.medio_pago_codigo = m.medio_pago_codigo
+	JOIN [DATA4MIND].[BI_medio_pago] bmp ON (bmp.tipoMedioPago=m.medio_pago)
+	GROUP BY FORMAT(v.fecha, 'yyyy-MM'), idTipoDescuento, idCanal, idMedioPago
 	)
 
 	INSERT INTO [DATA4MIND].[BI_hecho_envio] (fecha, idProvincia, idMedioEnvio, costo)
@@ -398,26 +412,23 @@ FROM (
 JOIN [DATA4MIND].[BI_medio_pago] m ON m.idMedioPago = vv.idTipoMedioPago
 GO
 
----- 5
+-- 5
 
-----Importe total en descuentos aplicados según su tipo de descuento, por
-----canal de venta, por mes. Se entiende por tipo de descuento como los
-----correspondientes a envío, medio de pago, cupones, etc)
+--Importe total en descuentos aplicados según su tipo de descuento, por
+--canal de venta, por mes. Se entiende por tipo de descuento como los
+--correspondientes a envío, medio de pago, cupones, etc)
 
---IF EXISTS(SELECT 1 FROM sys.views WHERE name='IMPORTE_DESCUENTOS' AND type='v')
---	DROP VIEW [DATA4MIND].[IMPORTE_DESCUENTOS]
---GO
+IF EXISTS(SELECT 1 FROM sys.views WHERE name='IMPORTE_DESCUENTOS' AND type='v')
+	DROP VIEW [DATA4MIND].[IMPORTE_DESCUENTOS]
+GO
 
---CREATE VIEW [DATA4MIND].[IMPORTE_DESCUENTOS] AS
---SELECT tipoDescuento, tipoCupon, canal, fecha, SUM(cc.importe) + SUM(d.importe) importe
---FROM [DATA4MIND].[BI_hechos_venta] h
---JOIN [DATA4MIND].[BI_canal] c ON h.idCanal = c.idCanal
---JOIN [DATA4MIND].[BI_tipo_descuento] t ON t.idTipoDescuento = h.idTipoDescuento
---JOIN [DATA4MIND].[BI_venta] v ON h.idVenta = v.idVenta
---JOIN [DATA4MIND].[BI_descuento_venta] d ON v.idVenta = d.idVenta
---JOIN [DATA4MIND].[BI_cupon] cc ON cc.idVenta = v.idVenta
---GROUP BY tipoDescuento, tipoCupon, canal, fecha
---GO
+CREATE VIEW [DATA4MIND].[IMPORTE_DESCUENTOS] AS
+SELECT tipoDescuento, canal, fecha, SUM(importeTotal)
+FROM [DATA4MIND].[BI_hecho_descuento_venta] h
+JOIN [DATA4MIND].[BI_tipo_descuento] d ON h.idTipoDescuento = d.idTipoDescuento
+JOIN [DATA4MIND].[BI_canal] c ON h.idCanal = c.idCanal
+GROUP BY tipoDescuento, canal, fecha
+GO
 
 ---- 6
 
@@ -431,19 +442,6 @@ GO
 
 
 --CREATE VIEW [DATA4MIND].[PORCENTAJE_ENVIOS] AS
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 --/**
 --CREATE VIEW [DATA4MIND].[PORCENTAJE_ENVIOS] AS
