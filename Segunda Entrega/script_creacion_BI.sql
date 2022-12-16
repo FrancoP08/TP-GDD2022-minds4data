@@ -144,7 +144,7 @@ BEGIN
 	idTipoMedioPago INTEGER REFERENCES [DATA4MIND].[BI_medio_pago],
 	idCategoria INTEGER REFERENCES [DATA4MIND].[BI_categoria], 
 	idRangoEtario INTEGER REFERENCES [DATA4MIND].[BI_rango_etario],
-	idProducto NVARCHAR(50) REFERENCES [DATA4MIND].[BI_producto],
+	idProducto INT REFERENCES [DATA4MIND].[BI_producto],
 	cantidad INT,
 	precio DECIMAL(18,2)
 	PRIMARY KEY(idHechoVenta, fecha, idCanal, idTipoMedioPago, idCategoria, idProducto, idRangoEtario)
@@ -154,7 +154,7 @@ BEGIN
 	idHechoCompra INTEGER IDENTITY(1,1),
     fecha NVARCHAR(7) REFERENCES [DATA4MIND].[BI_tiempo],
 	idProveedor INTEGER REFERENCES [DATA4MIND].[BI_proveedor],
-	idProducto NVARCHAR(50) REFERENCES [DATA4MIND].[BI_producto],
+	idProducto INT REFERENCES [DATA4MIND].[BI_producto],
 	cantidad INT,
 	precio DECIMAL(18,2)
 	PRIMARY KEY(idHechoCompra, fecha, idProveedor, idProducto)
@@ -243,19 +243,21 @@ BEGIN
 	)
 
 	INSERT INTO [DATA4MIND].[BI_hecho_envio] (fecha, idProvincia, idMedioEnvio, costo)
-	(SELECT DISTINCT FORMAT(fecha, 'yyyy-MM'), bp.idProvincia, bme.idTipoEnvio, SUM(e.costo) 
+	(SELECT DISTINCT FORMAT(fecha, 'yyyy-MM'), idProvincia, idTipoEnvio, SUM(e.costo) 
 	FROM [DATA4MIND].[venta] v 
 	JOIN [DATA4MIND].[envio] e ON (e.venta_codigo=v.venta_codigo)
+	JOIN [DATA4MIND].[medio_envio] m ON m.medio_envio_codigo = e.envio_codigo
 	JOIN [DATA4MIND].[localidad] l ON (l.localidad_codigo=e.localidad_codigo)
-	JOIN [DATA4MIND].[BI_provincia] bp ON (bp.idProvincia=l.provincia_codigo)
-	JOIN [DATA4MIND].[BI_medio_envio] bme ON (bme.idTipoEnvio=e.medio_envio_codigo)
+	JOIN [DATA4MIND].[provincia] p ON l.provincia_codigo = p.provincia_codigo
+	JOIN [DATA4MIND].[BI_provincia] bp ON (bp.provincia=p.provincia)
+	JOIN [DATA4MIND].[BI_medio_envio] bme ON (bme.medioEnvio=m.medio_envio)
 	GROUP BY FORMAT(v.fecha, 'yyyy-MM'), bp.idProvincia, bme.idTipoEnvio
 	)
 
 	INSERT INTO [DATA4MIND].[BI_hecho_venta] (
 		fecha, idProducto, idCategoria, idTipoMedioPago, idRangoEtario, idCanal, cantidad, precio
 	)
-	SELECT FORMAT(fecha, 'yyyy-MM') fecha, pv.producto_codigo, idCategoria, idMedioPago, idRangoEtario, idCanal, SUM(cantidad), precio
+	SELECT FORMAT(fecha, 'yyyy-MM') fecha, idProducto, idCategoria, idMedioPago, idRangoEtario, idCanal, SUM(cantidad), precio
 	FROM [DATA4MIND].[venta] v
 	JOIN [DATA4MIND].[medio_pago] m ON v.medio_pago_codigo = m.medio_pago_codigo
 	JOIN (
@@ -273,23 +275,26 @@ BEGIN
 	JOIN [DATA4MIND].[producto_vendido] p ON v.venta_codigo = p.venta_codigo
 	JOIN [DATA4MIND].[producto_variante] pv ON pv.producto_variante_codigo = p.producto_variante_codigo
 	JOIN [DATA4MIND].[producto] producto ON producto.producto_codigo = pv.producto_codigo
+	JOIN [DATA4MIND].[BI_producto] pp ON pp.descripcion = producto.descripcion
 	JOIN [DATA4MIND].[categoria] categoria ON categoria.categoria_codigo = producto.categoria_codigo
 	JOIN [DATA4MIND].[BI_categoria] c ON categoria.categoria = c.categoria
 	JOIN [DATA4MIND].[BI_medio_pago] mp ON mp.tipoMedioPago = medio_pago
 	JOIN [DATA4MIND].[canal] canal ON canal.canal_codigo = v.canal_codigo
 	JOIN [DATA4MIND].[BI_canal] cc ON canal.canal = cc.canal
-	GROUP BY FORMAT(fecha, 'yyyy-MM'), pv.producto_codigo, idCategoria, idMedioPago, idRangoEtario, idCanal, precio
+	GROUP BY FORMAT(fecha, 'yyyy-MM'), idProducto, idCategoria, idMedioPago, idRangoEtario, idCanal, precio
 
 	INSERT INTO [DATA4MIND].[BI_hecho_compra] (
 		fecha, idProducto, idProveedor, cantidad, precio
 	) 
-	SELECT FORMAT(fecha, 'yyyy-MM') fecha, producto_codigo, idProveedor, SUM(cantidad), precio
+	SELECT FORMAT(fecha, 'yyyy-MM') fecha, idProducto, idProveedor, SUM(cantidad), precio
 	FROM [DATA4MIND].[compra] c
 	JOIN [DATA4MIND].[proveedor] p ON c.proveedor_cuit = p.proveedor_cuit
 	JOIN [DATA4MIND].[producto_comprado] pc ON c.compra_codigo = pc.compra_codigo
 	JOIN [DATA4MIND].[producto_variante] pv ON pv.producto_variante_codigo = pc.producto_variante_codigo
+	JOIN [DATA4MIND].[producto] producto ON producto.producto_codigo = pv.producto_codigo
+	JOIN [DATA4MIND].[BI_producto] pp ON pp.descripcion = producto.descripcion
 	JOIN [DATA4MIND].[BI_proveedor] pro ON pro.cuit = p.proveedor_cuit
-	GROUP BY FORMAT(fecha, 'yyyy-MM'), idProveedor, producto_codigo, precio
+	GROUP BY FORMAT(fecha, 'yyyy-MM'), idProveedor, idProducto, precio
 END
 GO
 
@@ -423,7 +428,7 @@ IF EXISTS(SELECT 1 FROM sys.views WHERE name='IMPORTE_DESCUENTOS' AND type='v')
 GO
 
 CREATE VIEW [DATA4MIND].[IMPORTE_DESCUENTOS] AS
-SELECT tipoDescuento, canal, fecha, SUM(importeTotal)
+SELECT tipoDescuento, canal, fecha, SUM(importeTotal) importe
 FROM [DATA4MIND].[BI_hecho_descuento_venta] h
 JOIN [DATA4MIND].[BI_tipo_descuento] d ON h.idTipoDescuento = d.idTipoDescuento
 JOIN [DATA4MIND].[BI_canal] c ON h.idCanal = c.idCanal
