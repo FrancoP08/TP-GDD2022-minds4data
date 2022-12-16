@@ -322,20 +322,24 @@ IF EXISTS(SELECT 1 FROM sys.views WHERE name='RENTABILIDAD' AND type='v')
 GO
 
 CREATE VIEW [DATA4MIND].[RENTABILIDAD] AS 
-SELECT TOP 5 venta.anio, descripcion, (ingresos - egresos)/ingresos * 100 rentabilidad
+SELECT anio, descripcion, rentabilidad
 FROM (
-	SELECT anio, idProducto, SUM(cantidad * precio) ingresos
-	FROM [DATA4MIND].[BI_hecho_venta] v
-	JOIN [DATA4MIND].[BI_tiempo] t ON v.fecha = t.fecha
-	GROUP BY anio, idProducto
-) venta JOIN (
-	SELECT anio, idProducto, SUM(cantidad * precio) egresos
-	FROM [DATA4MIND].[BI_hecho_compra] c
-	JOIN [DATA4MIND].[BI_tiempo] t ON c.fecha = t.fecha
-	GROUP BY anio, idProducto
-) compra ON compra.anio = venta.anio AND compra.idProducto = venta.idProducto
-JOIN [DATA4MIND].[BI_producto] p ON p.idProducto = venta.idProducto
-ORDER BY 3 DESC
+	SELECT ROW_NUMBER() OVER (PARTITION BY venta.anio ORDER BY (ingresos - egresos)/ingresos * 100 DESC) fila,
+		venta.anio anio, venta.idProducto idProducto, (ingresos - egresos)/ingresos * 100 rentabilidad
+	FROM (
+		SELECT anio, idProducto, SUM(cantidad * precio) ingresos
+		FROM [DATA4MIND].[BI_hecho_venta] v
+		JOIN [DATA4MIND].[BI_tiempo] t ON v.fecha = t.fecha
+		GROUP BY anio, idProducto
+	) venta JOIN (
+		SELECT anio, idProducto, SUM(cantidad * precio) egresos
+		FROM [DATA4MIND].[BI_hecho_compra] c
+		JOIN [DATA4MIND].[BI_tiempo] t ON c.fecha = t.fecha
+		GROUP BY anio, idProducto
+	) compra ON compra.anio = venta.anio AND compra.idProducto = venta.idProducto
+) subq
+JOIN [DATA4MIND].[BI_producto] p ON p.idProducto = subq.idProducto
+WHERE fila <= 5
 GO
 
 -- 3
