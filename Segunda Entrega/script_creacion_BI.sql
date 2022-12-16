@@ -441,48 +441,62 @@ GO
 ----debe representar la cantidad de envíos realizados a cada provincia sobre
 ----total de envío mensuales.
 
---IF EXISTS(SELECT 1 FROM sys.views WHERE name='PORCENTAJE_ENVIOS' AND type='v')
---	DROP VIEW [DATA4MIND].[PORCENTAJE_ENVIOS]
---GO
+
+IF EXISTS(SELECT 1 FROM sys.views WHERE name='PORCENTAJE_ENVIOS' AND type='v')
+	DROP VIEW [DATA4MIND].[PORCENTAJE_ENVIOS]
+GO
+
+CREATE VIEW [DATA4MIND].[PORCENTAJE_ENVIOS] AS 
+(SELECT DISTINCT be.fecha, pr.provincia, SUM(be.idHechoEnvio)/(SELECT COUNT(be2.idHechoEnvio) FROM [DATA4MIND].[BI_hecho_envio] be2 WHERE be2.fecha=be.fecha) porcentaje FROM [DATA4MIND].[BI_hecho_envio] be
+JOIN [DATA4MIND].[BI_provincia] pr ON (pr.idProvincia=be.idProvincia)
+GROUP BY be.fecha, pr.provincia)
 
 
---CREATE VIEW [DATA4MIND].[PORCENTAJE_ENVIOS] AS
-
---/**
---CREATE VIEW [DATA4MIND].[PORCENTAJE_ENVIOS] AS
---SELECT t.fecha Fecha, p.nombreProvincia Provincia, ROUND(100*(
---	SELECT COUNT(vv.costoEnvio)/SUM(vv.costoEnvio)
---	FROM [DATA4MIND].[BI_hechos_venta] v
---	JOIN [DATA4MIND].[BI_venta] vv ON v.idVenta = vv.idVenta
---	WHERE v.idProvincia=p.idProvincia AND vv.costoEnvio IS NOT NULL
---), 3) Porcentaje 
---FROM [DATA4MIND].[BI_hechos_venta] hv 
---JOIN [DATA4MIND].[BI_provincia] p ON (hv.idProvincia=p.idProvincia)
---JOIN [DATA4MIND].[BI_tiempo] t ON (hv.fecha=t.fecha)
---GROUP BY p.idProvincia, t.fecha, p.nombreProvincia
---GO
---**/
+/**
+CREATE VIEW [DATA4MIND].[PORCENTAJE_ENVIOS] AS
+SELECT t.fecha Fecha, p.nombreProvincia Provincia, ROUND(100*(
+	SELECT COUNT(vv.costoEnvio)/SUM(vv.costoEnvio)
+	FROM [DATA4MIND].[BI_hechos_venta] v
+	JOIN [DATA4MIND].[BI_venta] vv ON v.idVenta = vv.idVenta
+	WHERE v.idProvincia=p.idProvincia AND vv.costoEnvio IS NOT NULL
+), 3) Porcentaje 
+FROM [DATA4MIND].[BI_hechos_venta] hv 
+JOIN [DATA4MIND].[BI_provincia] p ON (hv.idProvincia=p.idProvincia)
+JOIN [DATA4MIND].[BI_tiempo] t ON (hv.fecha=t.fecha)
+GROUP BY p.idProvincia, t.fecha, p.nombreProvincia
+GO
+**/
 
 ---- 7
 
 ----Valor promedio de envío por Provincia por Medio De Envío anual.
 
---IF EXISTS(SELECT 1 FROM sys.views WHERE name='PROMEDIO_ENVIOS' AND type='v')
---	DROP VIEW [DATA4MIND].[PROMEDIO_ENVIOS]
---GO
+IF EXISTS(SELECT 1 FROM sys.views WHERE name='PROMEDIO_ENVIOS' AND type='v')
+	DROP VIEW [DATA4MIND].[PROMEDIO_ENVIOS]
+GO
 
---CREATE VIEW [DATA4MIND].[PROMEDIO_ENVIOS] AS
---SELECT DISTINCT prom.fecha Mes, p.nombreProvincia Provincia, me.medioEnvio Medio_de_Envio, prom.Suma_Costos_Envios Promedio 
---FROM (
---	SELECT v.fecha, v.idProvincia Nro_Provincia, AVG(vv.costoEnvio) Suma_Costos_Envios 
---	FROM [DATA4MIND].[BI_hechos_venta] v
---	JOIN [DATA4MIND].[BI_venta] vv ON v.idVenta = vv.idVenta
---	GROUP BY v.idProvincia, v.fecha
---) prom 
---JOIN [DATA4MIND].[BI_provincia] p ON (prom.Nro_Provincia=p.idProvincia)
---JOIN [DATA4MIND].[BI_hechos_venta] hv ON (prom.Nro_Provincia=hv.idProvincia)
---JOIN [DATA4MIND].[BI_medio_envio] me ON (hv.idTipoEnvio=me.idTipoEnvio)
---GO
+
+CREATE VIEW [DATA4MIND].[PROMEDIO_ENVIOS] AS
+(SELECT bt.anio, pr.provincia, bme.medioEnvio, SUM(be.idHechoEnvio*be.costo)/(SELECT COUNT(pr2.idProvincia) FROM [DATA4MIND].[BI_provincia] pr2) promedio FROM [DATA4MIND].[BI_hecho_envio] be 
+JOIN [DATA4MIND].[BI_provincia] pr ON (pr.idProvincia=be.idProvincia)
+JOIN [DATA4MIND].[BI_medio_envio] bme ON (bme.idTipoEnvio=be.idMedioEnvio)
+JOIN [DATA4MIND].[BI_tiempo] bt ON (bt.anio=SUBSTRING(be.fecha, 1, 4))
+GROUP BY bt.anio, pr.provincia, bme.medioEnvio
+) 
+
+
+CREATE VIEW [DATA4MIND].[PROMEDIO_ENVIOS] AS
+SELECT DISTINCT prom.fecha Mes, p.nombreProvincia Provincia, me.medioEnvio Medio_de_Envio, prom.Suma_Costos_Envios Promedio 
+FROM (
+	SELECT v.fecha, v.idProvincia Nro_Provincia, AVG(vv.costoEnvio) Suma_Costos_Envios 
+	FROM [DATA4MIND].[BI_hechos_venta] v
+	JOIN [DATA4MIND].[BI_venta] vv ON v.idVenta = vv.idVenta
+	GROUP BY v.idProvincia, v.fecha
+) prom 
+JOIN [DATA4MIND].[BI_provincia] p ON (prom.Nro_Provincia=p.idProvincia)
+JOIN [DATA4MIND].[BI_hechos_venta] hv ON (prom.Nro_Provincia=hv.idProvincia)
+JOIN [DATA4MIND].[BI_medio_envio] me ON (hv.idTipoEnvio=me.idTipoEnvio)
+GO
 
 ---- 8
 
@@ -491,32 +505,32 @@ GO
 ----el mínimo todo esto divido el mínimo precio del año. Teniendo en cuenta
 ----que los precios siempre van en aumento.
 
---IF EXISTS(SELECT 1 FROM sys.views WHERE name='AUMENTO_PROMEDIO' AND type='v')
---	DROP VIEW [DATA4MIND].[AUMENTO_PROMEDIO]
---GO
+IF EXISTS(SELECT 1 FROM sys.views WHERE name='AUMENTO_PROMEDIO' AND type='v')
+	DROP VIEW [DATA4MIND].[AUMENTO_PROMEDIO]
+GO
 
---CREATE VIEW [DATA4MIND].[AUMENTO_PROMEDIO] AS
---SELECT razonSocial, anio, (MAX(precio) - MIN(precio)) / MIN(precio) aumentoPromedio
---FROM [DATA4MIND].[BI_hechos_compra] h
---JOIN [DATA4MIND].[BI_tiempo] t ON h.fecha = t.fecha
---JOIN [DATA4MIND].[BI_proveedor] p ON h.idProveedor = p.cuit
---GROUP BY razonSocial, anio
---GO
+CREATE VIEW [DATA4MIND].[AUMENTO_PROMEDIO] AS
+SELECT razonSocial, anio, (MAX(precio) - MIN(precio)) / MIN(precio) aumentoPromedio
+FROM [DATA4MIND].[BI_hecho_compra] h
+JOIN [DATA4MIND].[BI_tiempo] t ON h.fecha = t.fecha
+JOIN [DATA4MIND].[BI_proveedor] p ON h.idProveedor = p.idProveedor
+GROUP BY razonSocial, anio
+GO
 
 ---- 9
 
 ----Los 3 productos con mayor cantidad de reposición por mes.
 
---IF EXISTS(SELECT 1 FROM sys.views WHERE name='MAYOR_REPOSICION' AND type='v')
---	DROP VIEW [DATA4MIND].[MAYOR_REPOSICION]
---GO
+IF EXISTS(SELECT 1 FROM sys.views WHERE name='MAYOR_REPOSICION' AND type='v')
+	DROP VIEW [DATA4MIND].[MAYOR_REPOSICION]
+GO
 
---CREATE VIEW [DATA4MIND].[MAYOR_REPOSICION] AS
---SELECT fecha, idProducto, reposicion
---FROM (
---	SELECT idProducto, fecha, SUM(cantidad) reposicion, ROW_NUMBER() OVER (PARTITION BY fecha ORDER BY SUM(cantidad) DESC) pos
---	FROM [DATA4MIND].[BI_hechos_compra]
---	GROUP BY idProducto, fecha
---) subq
---WHERE pos < 4
---GO
+CREATE VIEW [DATA4MIND].[MAYOR_REPOSICION] AS
+SELECT fecha, idProducto, reposicion
+FROM (
+	SELECT idProducto, fecha, SUM(cantidad) reposicion, ROW_NUMBER() OVER (PARTITION BY fecha ORDER BY SUM(cantidad) DESC) pos
+	FROM [DATA4MIND].[BI_hecho_compra]
+	GROUP BY idProducto, fecha
+) subq
+WHERE pos < 4
+GO
