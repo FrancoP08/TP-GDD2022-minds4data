@@ -217,14 +217,15 @@ BEGIN
 	(SELECT p.provincia FROM [DATA4MIND].[provincia] p)
 	
 	------- TABLAS HECHOS --------
+
 	INSERT INTO [DATA4MIND].[BI_hecho_descuento_venta] (fecha, idTipoDescuento, idCanal, idTipoMedioPago, costoMedioPago, importeTotal)
-	(SELECT DISTINCT bt.fecha, td.tipo_descuento_codigo, v.canal_codigo, v.medio_pago_codigo, SUM(v.medio_pago_costo), SUM(v.total_descuentos) FROM [DATA4MIND].[venta] v
+	(SELECT DISTINCT FORMAT(v.fecha, 'yyyy-MM'), td.tipo_descuento_codigo, v.canal_codigo, v.medio_pago_codigo, SUM(v.medio_pago_costo), SUM(v.total_descuentos) 
+	FROM [DATA4MIND].[venta] v
 	JOIN [DATA4MIND].[descuento_venta] dv ON (dv.venta_codigo=v.venta_codigo)
 	JOIN [DATA4MIND].[tipo_descuento] td ON (td.tipo_descuento_codigo=dv.tipo_descuento_codigo)
 	JOIN [DATA4MIND].[BI_canal] bc ON (bc.idCanal=v.canal_codigo)
 	JOIN [DATA4MIND].[BI_medio_pago] bmp ON (bmp.idMedioPago=v.medio_pago_codigo)
-	JOIN [DATA4MIND].[BI_tiempo] bt ON (bt.fecha= FORMAT(v.fecha, 'yyyy-MM'))
-	GROUP BY bt.fecha, td.tipo_descuento_codigo, v.canal_codigo, v.medio_pago_codigo
+	GROUP BY FORMAT(v.fecha, 'yyyy-MM'), td.tipo_descuento_codigo, v.canal_codigo, v.medio_pago_codigo
 	)
 
 	INSERT INTO [DATA4MIND].[BI_hecho_envio] (fecha, idProvincia, idMedioEnvio, costo)
@@ -366,28 +367,36 @@ WHERE v.idCategoria IN (
 GROUP BY rango, fecha, categoria
 GO
 
----- 4
+-- 4
 
-----Total de Ingresos por cada medio de pago por mes, descontando los costos
-----por medio de pago (en caso que aplique) y descuentos por medio de pago
-----(en caso que aplique)
+--Total de Ingresos por cada medio de pago por mes, descontando los costos
+--por medio de pago (en caso que aplique) y descuentos por medio de pago
+--(en caso que aplique)
 
---IF EXISTS(SELECT 1 FROM sys.views WHERE name='INGRESOS_MEDIO_PAGO' AND type='v')
---	DROP VIEW [DATA4MIND].[INGRESOS_MEDIO_PAGO]
---GO
+IF EXISTS(SELECT 1 FROM sys.views WHERE name='INGRESOS_MEDIO_PAGO' AND type='v')
+	DROP VIEW [DATA4MIND].[INGRESOS_MEDIO_PAGO]
+GO
 
---CREATE VIEW [DATA4MIND].[INGRESOS_MEDIO_PAGO] AS
---SELECT tipoMedioPago, fecha, SUM(ingresos) 'Total ingresos'
---FROM (
---	SELECT idMedioPago, fecha, SUM(cantidad * precio) - SUM(costoMedioPago) - SUM(importe) ingresos
---	FROM [DATA4MIND].[BI_hechos_venta] hv
---	JOIN [DATA4MIND].[BI_venta] v ON hv.idVenta = v.idVenta
---	JOIN [DATA4MIND].[BI_descuento_venta] d ON d.idVenta = v.idVenta
---	GROUP BY idMedioPago, fecha
---) vv
---JOIN [DATA4MIND].[BI_medio_pago] m ON m.idMedioPago = vv.idMedioPago
---GROUP BY tipoMedioPago, fecha
---GO
+CREATE VIEW [DATA4MIND].[INGRESOS_MEDIO_PAGO] AS
+SELECT vv.fecha, tipoMedioPago, ingresos - descuentos 'Total ingresos'
+FROM (
+	SELECT fecha, idTipoMedioPago, SUM(cantidad * precio) ingresos
+	FROM [DATA4MIND].[BI_hecho_venta]
+	GROUP BY fecha, idTipoMedioPago
+) vv JOIN (
+	SELECT d.fecha, idTipoMedioPago, SUM(costoMedioPago) - descuentos descuentos
+	FROM [DATA4MIND].[BI_hecho_descuento_venta] d
+	JOIN (
+		SELECT fecha, SUM(importeTotal) descuentos
+		FROM [DATA4MIND].[BI_hecho_descuento_venta] d
+		JOIN [DATA4MIND].[BI_tipo_descuento] t ON t.idTipoDescuento = d.idTipoDescuento
+		WHERE tipoDescuento IN (SELECT tipoMedioPago FROM [DATA4MIND].[BI_medio_pago])
+		GROUP BY fecha
+	) subq ON subq.fecha = d.fecha
+	GROUP BY d.fecha, idTipoMedioPago, descuentos
+) dd ON dd.fecha = vv.fecha AND dd.idTipoMedioPago = vv.idTipoMedioPago
+JOIN [DATA4MIND].[BI_medio_pago] m ON m.idMedioPago = vv.idTipoMedioPago
+GO
 
 ---- 5
 
