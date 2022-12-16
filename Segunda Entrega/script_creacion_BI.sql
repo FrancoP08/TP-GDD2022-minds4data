@@ -293,19 +293,19 @@ IF EXISTS(SELECT 1 FROM sys.views WHERE name='GANANCIAS_CANAL' AND type='v')
 GO
 
 CREATE VIEW [DATA4MIND].[GANANCIAS_CANAL] AS 
-SELECT venta.fecha, canal, ingresos - egresos - SUM(costoMedioPago) ganancia
+SELECT venta.fecha, canal, SUM(ingresos) - SUM(egresos) - SUM(costoMedioPago) ganancia
 FROM (
-	SELECT fecha, idCanal, SUM(cantidad * precio) ingresos
+	SELECT fecha, idProducto, idCanal, SUM(cantidad * precio) ingresos
 	FROM [DATA4MIND].[BI_hecho_venta] v
-	GROUP BY fecha, idCanal
+	GROUP BY fecha, idCanal, idProducto
 ) venta JOIN (
-	SELECT fecha, SUM(cantidad * precio) egresos
+	SELECT fecha, idProducto, SUM(cantidad * precio) egresos
 	FROM [DATA4MIND].[BI_hecho_compra]
-	GROUP BY fecha
-) compra ON compra.fecha = venta.fecha
+	GROUP BY fecha, idProducto
+) compra ON compra.fecha = venta.fecha AND compra.idProducto = venta.idProducto
 JOIN [DATA4MIND].[BI_hecho_descuento_venta] d ON venta.fecha = d.fecha AND venta.idCanal = d.idCanal
 JOIN [DATA4MIND].[BI_canal] c ON venta.idCanal = c.idCanal
-GROUP BY venta.fecha, canal, ingresos, egresos
+GROUP BY venta.fecha, canal
 GO
 
 -- 2
@@ -317,39 +317,50 @@ GO
 --Valor expresado en porcentaje.
 --Para simplificar, no es necesario tener en cuenta los descuentos aplicados.
 
---IF EXISTS(SELECT 1 FROM sys.views WHERE name='RENTABILIDAD' AND type='v')
---	DROP VIEW [DATA4MIND].[RENTABILIDAD]
---GO
+IF EXISTS(SELECT 1 FROM sys.views WHERE name='RENTABILIDAD' AND type='v')
+	DROP VIEW [DATA4MIND].[RENTABILIDAD]
+GO
 
---CREATE VIEW [DATA4MIND].[RENTABILIDAD] AS
---SELECT TOP 5 descripcion, v.anio periodo, (ventas - compras) / ventas * 100 rentabilidad
---FROM [DATA4MIND].[BI_hecho_ganancia] h
---JOIN [DATA4MIND].[BI_producto] p ON h.idProducto = p.idProducto
---GO
+CREATE VIEW [DATA4MIND].[RENTABILIDAD] AS 
+SELECT TOP 5 venta.anio, descripcion, (ingresos - egresos)/ingresos * 100 rentabilidad
+FROM (
+	SELECT anio, idProducto, SUM(cantidad * precio) ingresos
+	FROM [DATA4MIND].[BI_hecho_venta] v
+	JOIN [DATA4MIND].[BI_tiempo] t ON v.fecha = t.fecha
+	GROUP BY anio, idProducto
+) venta JOIN (
+	SELECT anio, idProducto, SUM(cantidad * precio) egresos
+	FROM [DATA4MIND].[BI_hecho_compra] c
+	JOIN [DATA4MIND].[BI_tiempo] t ON c.fecha = t.fecha
+	GROUP BY anio, idProducto
+) compra ON compra.anio = venta.anio AND compra.idProducto = venta.idProducto
+JOIN [DATA4MIND].[BI_producto] p ON p.idProducto = venta.idProducto
+ORDER BY 3 DESC
+GO
 
----- 3
+-- 3
 
-----Las 5 categorías de productos más vendidos por rango etario de clientes
-----por mes.
+--Las 5 categorías de productos más vendidos por rango etario de clientes
+--por mes.
 
---IF EXISTS(SELECT 1 FROM sys.views WHERE name='MAS_VENDIDOS' AND type='v')
---	DROP VIEW [DATA4MIND].[MAS_VENDIDOS]
---GO
+IF EXISTS(SELECT 1 FROM sys.views WHERE name='MAS_VENDIDOS' AND type='v')
+	DROP VIEW [DATA4MIND].[MAS_VENDIDOS]
+GO
 
---CREATE VIEW [DATA4MIND].[MAS_VENDIDOS] AS
---SELECT rangoEtario, fecha, categoria, SUM(cantidad) ventas
---FROM [DATA4MIND].[BI_hechos_venta] v
---JOIN [DATA4MIND].[BI_categoria] c ON v.idCategoria = c.idCategoria
---JOIN [DATA4MIND].[BI_rango_etario] r ON v.idRangoEtario = r.idRangoEtario
---WHERE v.idCategoria IN (
---	SELECT TOP 5 idCategoria
---	FROM [DATA4MIND].[BI_hechos_venta]
---	WHERE idRangoEtario = v.idRangoEtario AND fecha = v.fecha
---	GROUP BY idCategoria
---	ORDER BY SUM(cantidad) DESC
---)
---GROUP BY rangoEtario, fecha, categoria
---GO
+CREATE VIEW [DATA4MIND].[MAS_VENDIDOS] AS
+SELECT rangoEtario, fecha, categoria, SUM(cantidad) ventas
+FROM [DATA4MIND].[BI_hechos_venta] v
+JOIN [DATA4MIND].[BI_categoria] c ON v.idCategoria = c.idCategoria
+JOIN [DATA4MIND].[BI_rango_etario] r ON v.idRangoEtario = r.idRangoEtario
+WHERE v.idCategoria IN (
+	SELECT TOP 5 idCategoria
+	FROM [DATA4MIND].[BI_hechos_venta]
+	WHERE idRangoEtario = v.idRangoEtario AND fecha = v.fecha
+	GROUP BY idCategoria
+	ORDER BY SUM(cantidad) DESC
+)
+GROUP BY rangoEtario, fecha, categoria
+GO
 
 ---- 4
 
