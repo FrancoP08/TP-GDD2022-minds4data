@@ -50,7 +50,6 @@ BEGIN
 
     ------ TABLAS DIMENSIONES -------
 
-	--- COMPARTIDAS ---
 	CREATE TABLE [DATA4MIND].[BI_tiempo] (
 	fecha NVARCHAR(7) PRIMARY KEY,
 	anio NVARCHAR(4),
@@ -92,6 +91,7 @@ BEGIN
 	)
 
 	--- DESCUENTOS ---
+
 	CREATE TABLE [DATA4MIND].[BI_tipo_descuento](
 		idTipoDescuento INTEGER IDENTITY(1,1) PRIMARY KEY,
 		tipoDescuento NVARCHAR(255)
@@ -104,6 +104,7 @@ BEGIN
 	)
 
 	--- ENVIOS ---
+
 	CREATE TABLE [DATA4MIND].[BI_medio_envio](
 		idTipoEnvio INTEGER IDENTITY(1,1) PRIMARY KEY,
 		medioEnvio NVARCHAR(255)
@@ -116,7 +117,6 @@ BEGIN
 
 	------ TABLAS HECHOS -------
 
-	--- DESCUENTOS DE VENTAS ---
 	CREATE TABLE [DATA4MIND].[BI_hecho_descuento_venta](
 	idHechoDescuentoVenta INTEGER IDENTITY(1,1),
 	fecha NVARCHAR(7) REFERENCES [DATA4MIND].[BI_tiempo],
@@ -128,7 +128,6 @@ BEGIN
 	PRIMARY KEY(idHechoDescuentoVenta, fecha, idTipoDescuento, idCanal, idTipoMedioPago)
 	)
 
-	--- ENVIO ---
 	CREATE TABLE [DATA4MIND].[BI_hecho_envio](
 	idHechoEnvio INTEGER IDENTITY(1,1),
 	fecha NVARCHAR(7) REFERENCES [DATA4MIND].[BI_tiempo],
@@ -138,20 +137,27 @@ BEGIN
 	PRIMARY KEY(idHechoEnvio, fecha, idProvincia, idMedioEnvio)
 	)
 
-	--- GANANICA ---
-	CREATE TABLE [DATA4MIND].[BI_hecho_ganancia] (
-	idHechoGanancia INTEGER IDENTITY(1,1),
+	CREATE TABLE [DATA4MIND].[BI_hecho_venta] (
+	idHechoVenta INTEGER IDENTITY(1,1),
     fecha NVARCHAR(7) REFERENCES [DATA4MIND].[BI_tiempo],
-	idProveedor INTEGER REFERENCES [DATA4MIND].[BI_proveedor],
 	idCanal INTEGER REFERENCES [DATA4MIND].[BI_canal],
 	idTipoMedioPago INTEGER REFERENCES [DATA4MIND].[BI_medio_pago],
 	idCategoria INTEGER REFERENCES [DATA4MIND].[BI_categoria], 
-	idProducto NVARCHAR(50) REFERENCES [DATA4MIND].[BI_producto],
 	idRangoEtario INTEGER REFERENCES [DATA4MIND].[BI_rango_etario],
-	cantidadComprada INT,
-	cantidadVendida INT,
+	idProducto NVARCHAR(50) REFERENCES [DATA4MIND].[BI_producto],
+	cantidad INT,
 	precio DECIMAL(18,2)
-	PRIMARY KEY(idHechoGanancia, fecha, idProveedor, idCanal, idTipoMedioPago, idCategoria, idProducto, idRangoEtario)
+	PRIMARY KEY(idHechoVenta, fecha, idCanal, idTipoMedioPago, idCategoria, idProducto, idRangoEtario)
+	)
+
+	CREATE TABLE [DATA4MIND].[BI_hecho_compra] (
+	idHechoCompra INTEGER IDENTITY(1,1),
+    fecha NVARCHAR(7) REFERENCES [DATA4MIND].[BI_tiempo],
+	idProveedor INTEGER REFERENCES [DATA4MIND].[BI_proveedor],
+	idProducto NVARCHAR(50) REFERENCES [DATA4MIND].[BI_producto],
+	cantidad INT,
+	precio DECIMAL(18,2)
+	PRIMARY KEY(idHechoCompra, fecha, idProveedor, idProducto)
 	)
 END
 GO
@@ -231,110 +237,85 @@ BEGIN
 	GROUP BY FORMAT(v.fecha, 'yyyy-MM'), bp.idProvincia, bme.idTipoEnvio
 	)
 
-	INSERT INTO [DATA4MIND].[BI_hecho_ganancia] (
-		fecha, idProducto, idCategoria, idTipoMedioPago, idRangoEtario, idCanal, idProveedor, 
-		cantidadVendida, cantidadComprada, precio
-	) SELECT vv.fecha, vv.producto_codigo, idCategoria, idMedioPago, idRangoEtario, idCanal, idProveedor,
-		cantidadVendida, cantidadComprada, vv.precio
-	FROM (
-		SELECT FORMAT(fecha, 'yyyy-MM') fecha, idRangoEtario, canal, medio_pago, producto_codigo, SUM(cantidad) cantidadVendida, precio
-		FROM [DATA4MIND].[venta] v
-		JOIN [DATA4MIND].[medio_pago] m ON v.medio_pago_codigo = m.medio_pago_codigo
-		JOIN [DATA4MIND].[producto_vendido] p ON v.venta_codigo = p.venta_codigo
-		JOIN [DATA4MIND].[producto_variante] pv ON pv.producto_variante_codigo = p.producto_variante_codigo
-		JOIN [DATA4MIND].[canal] c ON c.canal_codigo = v.canal_codigo
-		JOIN (
-			SELECT cliente_codigo, DATEDIFF(YEAR, fecha_de_nacimiento, GETDATE()) edad
-			FROM [DATA4MIND].[cliente] cc
-			JOIN [DATA4MIND].[localidad] ll ON cc.localidad_codigo = ll.localidad_codigo
-		) cl ON v.cliente_codigo = cl.cliente_codigo
-		JOIN [DATA4MIND].[BI_rango_etario] r ON
-			CASE
-				WHEN edad < 25 THEN 1
-				WHEN edad >= 25 AND edad <= 35 THEN 2
-				WHEN edad > 35 AND edad <= 55 THEN 3
-				ELSE 4
-			END = r.idRangoEtario 
-		GROUP BY FORMAT(fecha, 'yyyy-MM'), idRangoEtario, canal, medio_pago, producto_codigo, precio
-	) vv JOIN (
-		SELECT FORMAT(fecha, 'yyyy-MM') fecha, p.proveedor_cuit, producto_codigo, SUM(cantidad) cantidadComprada, precio
-		FROM [DATA4MIND].[compra] c
-		JOIN [DATA4MIND].[proveedor] p ON c.proveedor_cuit = p.proveedor_cuit
-		JOIN [DATA4MIND].[producto_comprado] pc ON c.compra_codigo = pc.compra_codigo
-		JOIN [DATA4MIND].[producto_variante] pv ON pv.producto_variante_codigo = pc.producto_variante_codigo
-		GROUP BY FORMAT(fecha, 'yyyy-MM'), p.proveedor_cuit, producto_codigo, precio
-	) cc ON vv.fecha = cc.fecha AND vv.producto_codigo = cc.producto_codigo
-	JOIN [DATA4MIND].[producto] producto ON producto.producto_codigo = vv.producto_codigo
+	INSERT INTO [DATA4MIND].[BI_hecho_venta] (
+		fecha, idProducto, idCategoria, idTipoMedioPago, idRangoEtario, idCanal, cantidad, precio
+	)
+	SELECT FORMAT(fecha, 'yyyy-MM') fecha, pv.producto_codigo, idCategoria, idMedioPago, idRangoEtario, idCanal, SUM(cantidad), precio
+	FROM [DATA4MIND].[venta] v
+	JOIN [DATA4MIND].[medio_pago] m ON v.medio_pago_codigo = m.medio_pago_codigo
+	JOIN (
+		SELECT cliente_codigo, DATEDIFF(YEAR, fecha_de_nacimiento, GETDATE()) edad
+		FROM [DATA4MIND].[cliente] cc
+		JOIN [DATA4MIND].[localidad] ll ON cc.localidad_codigo = ll.localidad_codigo
+	) cl ON v.cliente_codigo = cl.cliente_codigo
+	JOIN [DATA4MIND].[BI_rango_etario] r ON
+		CASE
+			WHEN edad < 25 THEN 1
+			WHEN edad >= 25 AND edad <= 35 THEN 2
+			WHEN edad > 35 AND edad <= 55 THEN 3
+			ELSE 4
+		END = r.idRangoEtario
+	JOIN [DATA4MIND].[producto_vendido] p ON v.venta_codigo = p.venta_codigo
+	JOIN [DATA4MIND].[producto_variante] pv ON pv.producto_variante_codigo = p.producto_variante_codigo
+	JOIN [DATA4MIND].[producto] producto ON producto.producto_codigo = pv.producto_codigo
 	JOIN [DATA4MIND].[categoria] categoria ON categoria.categoria_codigo = producto.categoria_codigo
 	JOIN [DATA4MIND].[BI_categoria] c ON categoria.categoria = c.categoria
 	JOIN [DATA4MIND].[BI_medio_pago] mp ON mp.tipoMedioPago = medio_pago
-	JOIN [DATA4MIND].[BI_canal] canal ON canal.canal = vv.canal
-	JOIN [DATA4MIND].[BI_proveedor] pro ON pro.cuit = proveedor_cuit
+	JOIN [DATA4MIND].[canal] canal ON canal.canal_codigo = v.canal_codigo
+	JOIN [DATA4MIND].[BI_canal] cc ON canal.canal = cc.canal
+	GROUP BY FORMAT(fecha, 'yyyy-MM'), pv.producto_codigo, idCategoria, idMedioPago, idRangoEtario, idCanal, precio
+
+	INSERT INTO [DATA4MIND].[BI_hecho_compra] (
+		fecha, idProducto, idProveedor, cantidad, precio
+	) 
+	SELECT FORMAT(fecha, 'yyyy-MM') fecha, producto_codigo, idProveedor, SUM(cantidad), precio
+	FROM [DATA4MIND].[compra] c
+	JOIN [DATA4MIND].[proveedor] p ON c.proveedor_cuit = p.proveedor_cuit
+	JOIN [DATA4MIND].[producto_comprado] pc ON c.compra_codigo = pc.compra_codigo
+	JOIN [DATA4MIND].[producto_variante] pv ON pv.producto_variante_codigo = pc.producto_variante_codigo
+	JOIN [DATA4MIND].[BI_proveedor] pro ON pro.cuit = p.proveedor_cuit
+	GROUP BY FORMAT(fecha, 'yyyy-MM'), idProveedor, producto_codigo, precio
 END
 GO
 
 EXEC [DATA4MIND].[MIGRAR_BI]
 GO
 
+-- 1
 
 --Las ganancias mensuales de cada canal de venta.
 --Se entiende por ganancias al total de las ventas, menos el total de las
 --compras, menos los costos de transacción totales aplicados asociados los
 --medios de pagos utilizados en las mismas.
 
---IF EXISTS(SELECT 1 FROM sys.views WHERE name='GANANCIAS_CANAL' AND type='v')
---	DROP VIEW [DATA4MIND].[GANANCIAS_CANAL]
---GO
+IF EXISTS(SELECT 1 FROM sys.views WHERE name='GANANCIAS_CANAL' AND type='v')
+	DROP VIEW [DATA4MIND].[GANANCIAS_CANAL]
+GO
 
---CREATE VIEW [DATA4MIND].[GANANCIAS_CANAL] AS 
---(SELECT v.fecha, bc.idCanal, (SUM(v.cant_total*v.precio) - SUM(c.cant_total*c.precio) - SUM(bdv.costoMedioPago)) Total FROM 
---	(SELECT DISTINCT bv.idCanal, bv.fecha, SUM(bv.cantidadVendida) cant_total, bv.precio
---	FROM [DATA4MIND].[BI_hecho_venta] bv
---	GROUP BY bv.idCanal, bv.fecha, bv.precio) v
---JOIN (SELECT DISTINCT bc.fecha, SUM(bc.cantidadComprada) cant_total, bc.precio 
---	FROM [DATA4MIND].[BI_hecho_compra] bc
---	GROUP BY bc.fecha, bc.precio) c ON v.fecha = c.fecha
---JOIN [DATA4MIND].[BI_hecho_descuento_venta] bdv ON (bdv.fecha=v.fecha)
---JOIN [DATA4MIND].[BI_canal] bc ON bc.idCanal = v.idCanal
---GROUP BY v.fecha, bc.idCanal
---)
+CREATE VIEW [DATA4MIND].[GANANCIAS_CANAL] AS 
+SELECT venta.fecha, canal, ingresos - egresos - SUM(costoMedioPago) ganancia
+FROM (
+	SELECT fecha, idCanal, SUM(cantidad * precio) ingresos
+	FROM [DATA4MIND].[BI_hecho_venta] v
+	GROUP BY fecha, idCanal
+) venta JOIN (
+	SELECT fecha, SUM(cantidad * precio) egresos
+	FROM [DATA4MIND].[BI_hecho_compra]
+	GROUP BY fecha
+) compra ON compra.fecha = venta.fecha
+JOIN [DATA4MIND].[BI_hecho_descuento_venta] d ON venta.fecha = d.fecha AND venta.idCanal = d.idCanal
+JOIN [DATA4MIND].[BI_canal] c ON venta.idCanal = c.idCanal
+GROUP BY venta.fecha, canal, ingresos, egresos
+GO
 
+-- 2
 
-
-
-
---/**
---CREATE VIEW [DATA4MIND].[GANANCIAS_CANAL] AS
---SELECT canal, v.fecha, ventas - SUM(c.cantidad * c.precio) ganancias
---FROM (
---	SELECT idCanal, fecha, SUM(ingresos) ventas
---	FROM (
---		SELECT idCanal, fecha, SUM(cantidad * precio) - SUM(costoMedioPago) ingresos
---		FROM [DATA4MIND].[BI_hechos_venta] hv
---		JOIN [DATA4MIND].[BI_venta] v ON hv.idVenta = v.idVenta
---		GROUP BY idCanal, fecha, v.idVenta
---	) vv
---	GROUP BY idCanal, fecha
---) v
---JOIN [DATA4MIND].[BI_hechos_compra] c ON v.fecha = c.fecha
---JOIN [DATA4MIND].[BI_canal] cc ON cc.idCanal = v.idCanal
---GROUP BY canal, v.fecha, ventas
---GO
---**/
-
-
-
-
-
-
-
-
-----Los 5 productos con mayor rentabilidad anual, con sus respectivos %
-----Se entiende por rentabilidad a los ingresos generados por el producto
-----(ventas) durante el periodo menos la inversión realizada en el producto
-----(compras) durante el periodo, todo esto sobre dichos ingresos.
-----Valor expresado en porcentaje.
-----Para simplificar, no es necesario tener en cuenta los descuentos aplicados.
+--Los 5 productos con mayor rentabilidad anual, con sus respectivos %
+--Se entiende por rentabilidad a los ingresos generados por el producto
+--(ventas) durante el periodo menos la inversión realizada en el producto
+--(compras) durante el periodo, todo esto sobre dichos ingresos.
+--Valor expresado en porcentaje.
+--Para simplificar, no es necesario tener en cuenta los descuentos aplicados.
 
 --IF EXISTS(SELECT 1 FROM sys.views WHERE name='RENTABILIDAD' AND type='v')
 --	DROP VIEW [DATA4MIND].[RENTABILIDAD]
@@ -342,19 +323,11 @@ GO
 
 --CREATE VIEW [DATA4MIND].[RENTABILIDAD] AS
 --SELECT TOP 5 descripcion, v.anio periodo, (ventas - compras) / ventas * 100 rentabilidad
---FROM (
---	SELECT idProducto, anio, SUM(cantidad * precio) ventas
---	FROM [DATA4MIND].[BI_hechos_venta] hv
---	JOIN [DATA4MIND].[BI_tiempo] t ON hv.fecha = t.fecha
---	GROUP BY idProducto, anio
---) v JOIN (
---	SELECT idProducto, anio, SUM(cantidad * precio) compras
---	FROM [DATA4MIND].[BI_hechos_compra] hc
---	JOIN [DATA4MIND].[BI_tiempo] t ON t.fecha = hc.fecha
---	GROUP BY idProducto, anio
---) c ON v.idProducto = c.idProducto AND v.anio = c.anio
---JOIN [DATA4MIND].[BI_producto] p ON p.idProducto = v.idProducto
+--FROM [DATA4MIND].[BI_hecho_ganancia] h
+--JOIN [DATA4MIND].[BI_producto] p ON h.idProducto = p.idProducto
 --GO
+
+---- 3
 
 ----Las 5 categorías de productos más vendidos por rango etario de clientes
 ----por mes.
@@ -378,6 +351,8 @@ GO
 --GROUP BY rangoEtario, fecha, categoria
 --GO
 
+---- 4
+
 ----Total de Ingresos por cada medio de pago por mes, descontando los costos
 ----por medio de pago (en caso que aplique) y descuentos por medio de pago
 ----(en caso que aplique)
@@ -399,6 +374,8 @@ GO
 --GROUP BY tipoMedioPago, fecha
 --GO
 
+---- 5
+
 ----Importe total en descuentos aplicados según su tipo de descuento, por
 ----canal de venta, por mes. Se entiende por tipo de descuento como los
 ----correspondientes a envío, medio de pago, cupones, etc)
@@ -417,6 +394,8 @@ GO
 --JOIN [DATA4MIND].[BI_cupon] cc ON cc.idVenta = v.idVenta
 --GROUP BY tipoDescuento, tipoCupon, canal, fecha
 --GO
+
+---- 6
 
 ----Porcentaje de envíos realizados a cada Provincia por mes. El porcentaje
 ----debe representar la cantidad de envíos realizados a cada provincia sobre
@@ -457,6 +436,8 @@ GO
 --GO
 --**/
 
+---- 7
+
 ----Valor promedio de envío por Provincia por Medio De Envío anual.
 
 --IF EXISTS(SELECT 1 FROM sys.views WHERE name='PROMEDIO_ENVIOS' AND type='v')
@@ -476,6 +457,8 @@ GO
 --JOIN [DATA4MIND].[BI_medio_envio] me ON (hv.idTipoEnvio=me.idTipoEnvio)
 --GO
 
+---- 8
+
 ----Aumento promedio de precios de cada proveedor anual. Para calcular este
 ----indicador se debe tomar como referencia el máximo precio por año menos
 ----el mínimo todo esto divido el mínimo precio del año. Teniendo en cuenta
@@ -492,6 +475,8 @@ GO
 --JOIN [DATA4MIND].[BI_proveedor] p ON h.idProveedor = p.cuit
 --GROUP BY razonSocial, anio
 --GO
+
+---- 9
 
 ----Los 3 productos con mayor cantidad de reposición por mes.
 
