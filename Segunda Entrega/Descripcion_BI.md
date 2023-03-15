@@ -5,10 +5,10 @@ ejecutarse realice la creación de un nuevo modelo de inteligencia de negocios y
 migre los datos de su sistema transaccional a dicho modelo de datos, el cual permitirá 
 acceder a las consultas que administren el tablero de control. En el mismo se deberá 
 incluir también la generación de las vistas necesarias para resolver las consultas de 
-negocio. 
+negocio.<br> 
 &nbsp;&nbsp;&nbsp;A parte, se creará un modelo de datos que organice y genere un modelo de 
 BI los cuales deben soportar la ejecución de consultas simples para resolver consultas de indole 
-general sobre el dominio. 
+general sobre el dominio.<br>  
 &nbsp;&nbsp;&nbsp;En general, los requerimientos para esta parte son: 
  - Creación de nuevas tablas y vistas que compongan el modelo de Inteligencia 
 de Negocios propuesto. 

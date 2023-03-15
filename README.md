@@ -9,8 +9,8 @@ sistema software para la gestión de un negocio que vende artículos de Bazar/Re
 tanto en un local físico como a través de su propia plataforma online.<br> 
 &nbsp;&nbsp;La implementación de dicho sistema, requiere previamente realizar la migración de 
 los datos que se tenían registrados hasta el momento. Para ello es necesario que se 
-reformule el diseño de la base de datos actual () y los procesos, de manera tal que cumplan 
-con los nuevos requerimientos.<br> 
+reformule el diseño de la base de datos actual (la que nos fue otorgada con el enunciado) 
+y los procesos, de manera tal que cumplan con los nuevos requerimientos.<br> 
 &nbsp;&nbsp;Además, se solicita la implementación de un segundo modelo, con sus 
 correspondientes procedimientos y vistas, que pueda ser utilizado para la obtención de 
 indicadores de gestión, análisis de escenarios y proyección para la toma de decisiones.<br> 
